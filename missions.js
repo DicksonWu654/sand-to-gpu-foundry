@@ -53,7 +53,7 @@ SG.MISSIONS = {
     title: 'Design the chip and tape out', brief: [
       { h: 'The chip is text before it is silicon', p: 'Architecture becomes RTL (register-transfer level code), RTL is synthesized to standard cells from the foundry\'s PDK, cells are placed and routed, and then the design is checked: timing, IR drop, electromigration, DRC, LVS, antenna rules. Verification dominates because a bug found after tape-out costs a new mask set.', fig: 'm19/verification-why-nvidia-runs-more-emulators-than-anyone' },
       { h: 'The reticle limit', p: 'A scanner exposes a field of 26 × 33 mm = 858 mm². No single die can be larger. H100 is 814 mm²; Blackwell uses two ~800 mm² dies joined on the package. High-NA EUV halves the field to 26 × 16.5 mm, which is why chiplets matter more each node.' },
-      { h: 'Emulate before you tape out', p: 'Booting an operating system takes ~10¹⁰ cycles: about 1.4 hours on an emulator running at 1–10 MHz, and ~60 years in software simulation. That is why NVIDIA runs data-center-scale emulator farms, and why a bug that escapes to silicon costs ~3 months (a metal-only respin 6–8 weeks), not just money.' },
+      { h: 'Emulate before you tape out', p: 'Booting an operating system takes ~10¹⁰ cycles: about 1.4 hours on an emulator running at ~2 MHz, and ~60 years in software simulation. That is why NVIDIA runs data-center-scale emulator farms, and why a bug that escapes to silicon costs ~3 months (a metal-only respin 6–8 weeks), not just money.' },
       { h: 'Masks', p: 'A leading-node mask set is 70–100+ photomasks at ~$20–30M. EUV blanks are low-thermal-expansion glass (ULE) with 40 Mo/Si bilayers, written by multi-beam electron beam, inspected with 13.5 nm light and protected by a pellicle.' }
     ],
     build: { fig: 'm19/verification-why-nvidia-runs-more-emulators-than-anyone', mode: 'order' },
@@ -71,7 +71,7 @@ SG.MISSIONS = {
   'bay-clean': {
     title: 'Cleanroom & AMHS bay', bay: true, optional: true, cost: 10000000, brief: [
       { h: 'Clean air', p: 'ISO class 5 allows 3,520 particles of 0.5 µm per m³, about 10,000× cleaner than city air. Filtered air comes down through the ceiling at ~0.3–0.5 m/s and crosses the room in seconds. Wafers spend most of their life inside sealed FOUPs anyway.', fig: 'm05/cleanroom-classes-and-airflow' },
-      { h: 'Wafers in motion', p: 'Overhead hoist transport carries 25-wafer FOUPs between bays; the queue at each tool, not the tool time, sets the cycle time. Raise utilization toward 100% and queues explode (the X-factor), which is why fabs run below full load on purpose.' },
+      { h: 'Wafers in motion', p: 'Overhead hoist transport carries 25-wafer FOUPs between bays; the queue at each tool, not the tool time, sets the cycle time; the next card says by how much.' },
       { h: 'Why fabs run below full load', p: 'Waiting time scales as u/(1 − u). At 80% utilization a tool\'s queue term is 4, at 90% it is 9, at 95% it is 19. Raw process time is only 25–50% of the ~90-day cycle; the rest is queueing, so only bottleneck tools are run near full.' }
     ],
     build: { fig: 'm05/cleanroom-classes-and-airflow', mode: 'order' },
@@ -149,7 +149,7 @@ SG.MISSIONS = {
     title: 'Build the HBM line', brief: [
       { h: 'A DRAM bit is a capacitor', p: 'One transistor, one capacitor: write a charge, read it by sharing it with the bit line, and refresh it before it leaks away. The capacitor is a tall cylinder with a dielectric under a nanometre of equivalent oxide; DRAM nodes are named 1α, 1β, 1γ.', fig: 'm15/4-the-storage-capacitor' },
       { h: 'Stack it', p: 'HBM stacks 8, 12 or 16 DRAM dies on a base logic die, connected by through-silicon vias (~5 µm wide, ~50 µm deep) and microbumps at ~40 µm pitch. Dies are thinned to ~30 µm so a 12-high fits inside HBM3E\'s 720 µm cap; HBM4 raised the cap to 775 µm, so 16-high still fits with microbumps, with ~25 µm to spare. Hybrid bonding (no solder gap) is what 20-high and the generations after HBM4 will need.', fig: 'm15/15-anatomy-of-an-hbm-stack' },
-      { h: 'Compound yield', p: 'Every one of the 13 or 17 dies must be good: stack yield = (1 − escape)^(n+1) × bond^n. That is why every die is probed for known-good-die status before stacking, and why HBM takes ~2–3 wafers per DDR5 wafer-equivalent.' }
+      { h: 'Compound yield', p: 'Every one of the 13 or 17 dies must be good: stack yield = (1 − escape)^(n+1) × bond^n. That is why every die is probed for known-good-die status before stacking. TSV area on every die, wider margins around it, and stack loss are why HBM takes ~2–3 wafers per DDR5 wafer-equivalent.' }
     ],
     build: { scene: 'hbm-section', fig: 'm15/15-anatomy-of-an-hbm-stack', why: ['Each DRAM die is a full memory chip thinned to ~30 µm; twelve of them give 36 GB.', 'Bonded interfaces between dies: microbumps with solder (TC-NCF or MR-MUF) or copper-to-copper hybrid bonds.', 'Through-silicon vias carry signals and power vertically through every die to the base.', 'The base die is a logic chip made at a foundry; it is the stack\'s interface to the GPU across the interposer.'], decoys: ['Heat spreader lid'] },
     commission: [{ widget: 'dram-cell' }, { widget: 'hbm-stack' }], certify: { modules: [15], n: 2 }
@@ -185,7 +185,7 @@ SG.MISSIONS = {
     title: 'Migrate the fab to N3', node: true, cost: 2000000000, brief: [
       { h: 'What a node name means', p: '"3 nm" is a label, not a measurement. The real numbers are contacted poly pitch (~45–50 nm), metal pitch (~23–30 nm), cell height in tracks and the resulting transistor density (~200–215 MTr/mm² at N3E, of which real chips use 50–70%). Density gain per node has fallen to ~1.15–1.3×.', fig: 'm11/8-node-timeline-sram-and-design-co-optimization' },
       { h: 'A new node resets the learning curve', p: 'D0 starts several times higher than on the mature node and comes down only with wafers run. The wafer sells for more (~$18–20k at N3, ~$30k at N2) and takes more EUV layers (20+ at N3, 25+ at N2), so opex rises too. Whether the migration pays depends on your yield learning rate.' },
-      { h: 'SRAM stopped shrinking', p: 'Logic keeps scaling; the SRAM bit cell barely has since N5 (0.021 µm² on N2). A die that is half cache scales worse than the library number, which is why large caches move to separate dies and why the 50–70% real-chip figure keeps falling.' }
+      { h: 'SRAM stopped shrinking', p: 'Logic keeps scaling; the SRAM bit cell barely has since N5 (0.021 µm² on N2). A die that is half cache scales worse than the library number, which is why SRAM-heavy dies gain less per node than the library number suggests, and why big caches are increasingly built on separate dies.' }
     ],
     build: { fig: 'm11/8-node-timeline-sram-and-design-co-optimization', mode: 'order' },
     commission: [{ widget: 'node-table' }, { widget: 'moores-law' }], certify: { modules: [11, 20], n: 2 },
@@ -195,7 +195,7 @@ SG.MISSIONS = {
     title: 'Migrate the fab to N2', node: true, cost: 5000000000, brief: [
       { h: 'Nanosheets and backside power', p: 'N2 replaces fins with stacked nanosheets so the gate wraps the channel on all four sides; A16 adds backside power delivery so the crowded front-side metal carries only signals. Wafer price ~$30k; a good 800 mm² die costs ~$1,000 at 45% yield.', fig: 'm11/8-node-timeline-sram-and-design-co-optimization' },
       { h: 'High-NA on the horizon', p: 'The EXE:5000/5200 raises NA to 0.55 with anamorphic optics and half the field size, ~16 nm pitch in a single exposure, at ~$380M a tool. Depth of focus shrinks with NA², so wafers must be flatter still.' },
-      { h: 'Cost per transistor stopped falling', p: 'N5 → N3E: wafer price ×1.15, density ×1.5, cost per transistor down ~25%. N3E → N2: price ×1.58, density ×1.16, cost per transistor up ~30–35%. Migrate for performance, power and density, not for cheaper transistors; that is why only products with billions in revenue use the leading node.' }
+      { h: 'Cost per transistor stopped falling', p: 'N5 → N3E: wafer price ×1.15, density ×1.5, cost per transistor down ~25%. N3E → N2: price ×1.58, density ×1.16, cost per transistor up ~30–35% on the course\'s list-price estimates. Migrate for performance, power and density, not for cheaper transistors; that is why only products with billions in revenue use the leading node.' }
     ],
     build: { fig: 'm08/the-wafer-side', mode: 'order' },
     commission: [{ widget: 'euv-stochastics' }, { widget: 'wafer-price' }], certify: { modules: [8, 11, 20], n: 2 },

@@ -112,9 +112,9 @@ SG.STATIONS = [
     cost: 150000000, rate: 300, inputs: { wafer: 1 }, outputs: { hbm: 'HBMPW' }, opex: 300, lab: 'hbm', parallel: true,
     short: 'DRAM wafers → TSVs (Bosch etch, Cu fill) → thin to ~30 µm → probe for known-good dies → stack 8/12/16-high on a base die → test.',
     guide: {
-      in: 'DRAM wafers on a 1β/1γ process, and a base logic die (made at TSMC for SK hynix and Micron HBM4).', out: 'A tested 8-, 12- or 16-high memory stack ~720 µm tall with ~1–2 TB/s through its bottom.',
+      in: 'DRAM wafers on a 1β/1γ process, and a base logic die (made at TSMC for SK hynix and Micron HBM4).', out: 'A tested 8-, 12- or 16-high memory stack, 720 µm (HBM3E) or 775 µm (HBM4) tall, with ~1–2 TB/s through its bottom.',
       constraint: 'Compound yield. Every one of the 13 or 17 dies in a stack must be good, so the stack is only as good as the known-good-die test on each die: if each passed die is 98% likely to be truly good, a 12-high stack starts at 0.98¹³ ≈ 77% before any bonding loss; at 99% it is ≈ 88%.',
-      numbers: ['TSV: ~5–6 µm diameter, ~50 µm deep, via-middle', 'Die thickness ~30 µm; HBM3E cap 720 µm, HBM4 cap 775 µm so 16-high still fits with microbumps', 'Microbump pitch ~40 µm; hybrid bonding for the tallest stacks', 'HBM takes ~2–3 wafers per DDR5 wafer-equivalent (larger dies, stack yield, a base die), which is why diverting wafers to HBM caused the 2025–26 DRAM shortage', 'HBM ~$15–20 per GB; shares (Q2 2026): SK hynix ~50%'],
+      numbers: ['TSV: ~5–6 µm diameter, ~50 µm deep, via-middle', 'Die thickness ~30 µm; HBM3E cap 720 µm, HBM4 cap 775 µm so 16-high still fits with microbumps', 'Microbump pitch ~40 µm; hybrid bonding expected at HBM4E/HBM5 for 20-high stacks', 'HBM takes ~2–3 wafers per DDR5 wafer-equivalent (larger dies, stack yield, a base die), which is why diverting wafers to HBM caused the 2025–26 DRAM shortage', 'HBM ~$15–20 per GB; shares (Q2 2026): SK hynix ~50%'],
       why: 'A GPU package needs 8 stacks, and stack yield decides whether your HBM plant feeds packaging or starves it. The HBM Stacker lab sets your stack height and test rigor.'
     }
   },
@@ -222,7 +222,7 @@ SG.PUZZLES = [
       ['Bond to carrier, thin to ~30 µm, reveal TSVs', 'A 30 µm wafer cannot support itself; grinding stops exactly where the TSVs end (TTV < 1 µm).'],
       ['Wafer probe for known-good dies', 'One bad die scraps the whole stack, so every die is tested (with a burn-in-like stress) before stacking.'],
       ['Dice DRAM and base dies', 'The base logic die sits at the bottom and is the interface to the GPU.'],
-      ['Stack by thermocompression bonding', '8/12/16 dies on the base die; TC-NCF or MR-MUF; hybrid bonding for the tallest stacks.'],
+      ['Stack by thermocompression bonding', '8/12/16 dies on the base die; TC-NCF or MR-MUF; hybrid bonding expected at HBM4E/HBM5 for 20-high.'],
       ['Mold, grind to ~720 µm, test, burn-in', 'Known-good-stack test before the stack ships to packaging.']
     ] },
   { id: 'cowosflow', title: 'CoWoS: chip-on-wafer, then wafer-on-substrate', station: 'cowos', modules: [17],

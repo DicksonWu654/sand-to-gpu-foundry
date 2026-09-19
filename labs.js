@@ -51,7 +51,7 @@ SG.LABS.cz = {
       cx.fillText(`D = ${D.toFixed(1)} mm  ·  length ${(len).toFixed(0)} mm  ·  melt superheat ${(s + Pact * 0.4 >= 0 ? '+' : '')}${(s + Pact * 0.4).toFixed(2)}  ·  t = ${Math.min(DUR, t).toFixed(0)}/${DUR} s`, x0, H - 12);
       const v = Number(vSlider.value); const vOk = v >= 0.5 && v <= 1.0;
       cx.fillStyle = vOk ? '#62d4a0' : '#f06c5f';
-      cx.fillText(vOk ? 'v/G inside window' : v > 1.3 ? 'v/G too high: vacancy-rich, COPs forming' : 'v/G too low: interstitial-rich, dislocation loops', x0, H - 28);
+      cx.fillText(vOk ? 'v/G inside window' : v > 1.0 ? 'v/G too high: vacancy-rich, COPs forming' : 'v/G too low: interstitial-rich, dislocation loops', x0, H - 28);
     }
     function physics(dt) {
       t += dt;
@@ -329,8 +329,7 @@ SG.LABS.hbm = {
       const dieCost = 10; const stackCost = (height + 1) * (dieCost + t.cost) + b.cost;
       const costPerGood = Y > 0 ? stackCost / Y : Infinity; const margin = price - costPerGood;
       const stacksPerWafer = 30 * Y;
-      out.innerHTML = invalid ? `<b class="warn">A 16-high stack does not fit the 720 µm JEDEC height with solder microbumps.</b> Dies would have to be ~20–25 µm thin and bonded without solder: choose hybrid bonding.` :
-        `<table class="kv">
+      out.innerHTML = `<table class="kv">
         <tr><td>Dies in the stack</td><td><b>${height + 1}</b> (${height} DRAM + base)</td></tr>
         <tr><td>Stack yield</td><td><b>${pct(Y)}</b> <span class="muted">= ${(1 - t.escape).toFixed(2)}^${height + 1} × ${b.bond}^${height} = ${pct(Math.pow(1 - t.escape, height + 1))} × ${pct(Math.pow(b.bond, height))}${thinPenalty < 1 ? ' × 0.93 (16-high on ~30 µm dies with solder: thin-die handling loss)' : ''}</span></td></tr>
         <tr><td>Cost put into each stack</td><td><b>${fmt$(stackCost)}</b> <span class="muted">${height + 1} × ($${dieCost} die + $${t.cost} test) + $${b.cost} bonding</span></td></tr>
@@ -338,7 +337,7 @@ SG.LABS.hbm = {
         <tr><td>Price (${gb} GB at $18/GB)</td><td><b>${fmt$(price)}</b> → margin <b class="${margin > 0 ? 'ok' : 'warn'}">${fmt$(margin)}</b> per good stack</td></tr>
         <tr><td>Good stacks per wafer × margin</td><td><b class="${margin > 0 ? 'ok' : 'warn'}">${fmt$(stacksPerWafer * margin)}</b> per wafer <span class="muted">(${stacksPerWafer.toFixed(1)} stacks)</span></td></tr>
         </table>`;
-      commit.disabled = invalid;
+      commit.disabled = false;
       commit.onclick = () => {
         S.labs.hbm = { height, escape: t.escape, bond: b.bond, bondName: b.name, testName: t.name, yield: Y };
         log(`HBM line: ${height}-high, ${t.name}, ${b.name}; stack yield ${pct(Y)}.`, 'lab'); toast('HBM line configured', `${height}-high at ${pct(Y)} stack yield, ${gb} GB per stack.`);
