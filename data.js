@@ -53,7 +53,7 @@ SG.STATIONS = [
     }
   },
   {
-    id: 'cz', name: 'Crystal Puller (CZ)', stage: 'C', modules: [2], icon: '🧊',
+    id: 'cz', name: 'Crystal Puller', stage: 'C', modules: [2], icon: '🧊',
     cost: 5000000, rate: 6, inputs: { poly: 300 }, outputs: { ingot: 1 }, opex: 15000, lab: 'cz',
     short: 'Melt 300 kg of poly in a quartz crucible, dip a seed, Dash-neck, then pull a 300 mm, ~2 m single crystal over 30–40 h.',
     guide: {
@@ -86,7 +86,7 @@ SG.STATIONS = [
     }
   },
   {
-    id: 'fab', name: 'Wafer Fab (FEOL + BEOL)', stage: 'E–G', modules: [5, 6, 7, 8, 9, 10, 11, 12], icon: '🏭',
+    id: 'fab', name: 'Wafer Fab', stage: 'E–G', modules: [5, 6, 7, 8, 9, 10, 11, 12], icon: '🏭',
     cost: 120000000, rate: 1000, inputs: { wafer: 1 }, outputs: { fwafer: 1 }, opex: 8000, lab: 'litho', lab2: 'oxide', needsDesign: true,
     short: '~1,000–1,500 steps, ~80 litho layers, ~90 days: transistors (FEOL), contacts (MOL), then 15–18 levels of copper wiring (BEOL).',
     guide: {
@@ -130,7 +130,7 @@ SG.STATIONS = [
     }
   },
   {
-    id: 'test', name: 'Final Test & Burn-in', stage: 'N', modules: [18], icon: '🌡',
+    id: 'test', name: 'Final Test', stage: 'N', modules: [18], icon: '🌡',
     cost: 50000000, rate: 1000, inputs: { pkg: 1 }, outputs: { gpu: 0.97 }, opex: 500, lab: 'test',
     short: 'Package test on ATE at several temperatures, burn-in (hours at high temperature and voltage), system-level test on real workloads, binning.',
     guide: {
@@ -141,7 +141,7 @@ SG.STATIONS = [
     }
   },
   {
-    id: 'systems', name: 'Systems: SXM → HGX → NVL72', stage: 'O', modules: [19, 20], icon: '🗄',
+    id: 'systems', name: 'Systems (NVL72)', stage: 'O', modules: [19, 20], icon: '🗄',
     cost: 150000000, rate: 10, inputs: { gpu: 72 }, outputs: { rack: 1 }, opex: 600000,
     short: 'Package onto an SXM module, 8 per HGX baseboard or 4 per GB200 compute tray; 18 trays + 9 NVSwitch trays + ~5,000 NVLink cables + liquid cooling = one rack.',
     guide: {

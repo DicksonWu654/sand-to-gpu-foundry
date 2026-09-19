@@ -17,6 +17,7 @@
     for (const k of kids.flat(Infinity)) if (k !== null && k !== undefined) n.append(k.nodeType ? k : document.createTextNode(String(k)));
     return n;
   };
+  const ic = (name, cls) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'ic' + (cls ? ' ' + cls : '')); const u = document.createElementNS('http://www.w3.org/2000/svg', 'use'); u.setAttribute('href', '#i-' + name); s.append(u); return s; };
   const REQUIRED_BAYS = ['bay-oxdep', 'bay-litho', 'bay-etch', 'bay-implant', 'bay-feol', 'bay-beol'];
   const OPTIONAL_BAYS = ['bay-clean', 'bay-metro'];
 
@@ -33,8 +34,19 @@
       sell: {}, stats: { revenue: 0, sold: {}, capex: 0, clicks: 0, rush: 0 }, income: 0, won: false, speed: 1
     };
   }
-  let S = load() || freshState();
-  function save() { S.lastSeen = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+  const PARAMS = new URLSearchParams(location.search);
+  let noSave = PARAMS.has('nosave') || PARAMS.has('demo');
+  let S = (PARAMS.has('demo') ? null : load()) || freshState();
+  function save() { if (noSave) return; S.lastSeen = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+  // Demo states for review and screenshots: ?demo=early|mid|late  (never saved)
+  function applyDemo(kind) {
+    const on = ids => ids.forEach(id => { S.st[id].on = true; });
+    if (kind === 'early') { on(['mine', 'furnace', 'siemens']); S.cash = 2.4e6; S.st.mine.level = 3; S.st.furnace.level = 2; S.day = 21; S.res.quartz = 900; S.res.mgsi = 120; S.res.poly = 30000; S.answered['1:0'] = true; S.answered['1:2'] = true; }
+    if (kind === 'mid' || kind === 'late') { on(['mine', 'furnace', 'siemens', 'cz', 'wafering', 'design', 'fab', 'sort', 'hbm']); S.design = { A: 800, n: 2, h: 8, model: 'nb', name: 'Blackwell-class' }; for (const b of ['bay-oxdep', 'bay-litho', 'bay-etch', 'bay-implant', 'bay-feol', 'bay-beol']) S.bays[b] = true; Object.assign(S.st, { mine: { on: true, level: 12 }, furnace: { on: true, level: 9 }, siemens: { on: true, level: 7 }, cz: { on: true, level: 6 }, wafering: { on: true, level: 5 }, fab: { on: true, level: 2 }, sort: { on: true, level: 2 }, hbm: { on: true, level: 2 } }); S.cash = 210e6; S.day = 188; S.wafersRun = 24000; S.res.wafer = 30000; S.res.poly = 400000; S.res.fwafer = 900; S.res.die = 3000; S.res.hbm = 2200; for (let i = 0; i < 31; i++) S.answered[(1 + i % 8) + ':' + (i % 8)] = true; for (const a of ['first_million', 'nine_nines', 'six_bays', 'clean_assembly']) { S.ach[a] = 100; } S.achMult = 0.13; S.labs.cz = { score: 0.82, wpi: 1628 }; S.missions = { mine: { targets: 1, targetsTotal: 1, mistakes: 0 }, furnace: { targets: 0, targetsTotal: 0, mistakes: 0 }, siemens: { targets: 1, targetsTotal: 1, mistakes: 1 } }; S.events = [{ id: 'abf', endsDay: 230 }]; }
+    if (kind === 'late') { on(['cowos', 'test', 'systems']); Object.assign(S.st, { cowos: { on: true, level: 7 }, test: { on: true, level: 3 }, systems: { on: true, level: 2 }, fab: { on: true, level: 6 } }); S.cash = 4.2e9; S.day = 512; S.wafersRun = 160000; S.node = 'N3'; S.nodeFx = { waferPrice: 19000, opex: 10000, density: 1.35 }; S.made.rack = 40; S.stats.sold.rack = 40; S.won = true; S.res.gpu = 120; S.res.pkg = 300; }
+    S.log = [{ day: Math.floor(S.day), text: 'Demo state "' + kind + '" loaded (not saved).', cls: 'muted' }];
+  }
+  if (PARAMS.has('demo')) applyDemo(PARAMS.get('demo'));
   function load() {
     try {
       const j = localStorage.getItem(SAVE_KEY); if (!j) return null; const s = JSON.parse(j); if (s.v !== 1) return null;
@@ -197,11 +209,11 @@
       renderSide();
     }
   }
-  function fireEvent() {
+  function fireEvent(forced) {
     const candidates = SG.EVENTS.filter(e => !S.events.some(x => x.id === e.id) && (!e.station || S.st[e.station].on));
-    if (!candidates.length) return;
-    const e = candidates[Math.floor(Math.random() * candidates.length)];
-    S.events.push({ id: e.id, endsDay: S.day + e.days });
+    if (!forced && !candidates.length) return;
+    const e = forced || candidates[Math.floor(Math.random() * candidates.length)];
+    if (!forced) S.events.push({ id: e.id, endsDay: S.day + e.days });
     if (e.scrapFrac && e.station === 'fab') {
       const frac = S.mitig.isolation ? 0.05 : e.scrapFrac;
       const wip = capacity(byId.fab) * 90; const scrapped = wip * frac; const cost = scrapped * (SG.RES.wafer.price + stationOpex(byId.fab) * 0.5);
@@ -223,7 +235,7 @@
     if ($('.rush')) return;
     const r = SG.RUSH[Math.floor(Math.random() * SG.RUSH.length)];
     const value = Math.max(25000, S.income * r.days);
-    const btn = el('button', { class: 'rush', style: `left:${10 + Math.random() * 70}%; top:${20 + Math.random() * 50}%` }, el('b', null, '💰 Rush order'), el('span', null, r.title + ' · ' + fmt$(value)));
+    const btn = el('button', { class: 'rush', style: `left:${10 + Math.random() * 70}%; top:${20 + Math.random() * 50}%` }, el('b', null, ic('coin'), 'Rush order'), el('span', null, r.title + ' · ' + fmt$(value)));
     const timer = setTimeout(() => btn.remove(), 14000);
     btn.addEventListener('click', () => { clearTimeout(timer); btn.remove(); S.cash += value; S.stats.rush = (S.stats.rush || 0) + 1; log(`Rush order collected: ${r.title} (+${fmt$(value)})`, 'ach'); toast('💰 ' + r.title + ' +' + fmt$(value), r.text); floatText(btn, '+' + fmt$(value), 'gold'); });
     document.body.append(btn);
@@ -250,17 +262,19 @@
     const root = modalRoot(); root.innerHTML = '';
     const box = el('div', { class: 'modal-box ' + ((opts && opts.wide) ? 'wide' : '') });
     if (!(opts && opts.noClose)) box.append(el('button', { class: 'modal-x', onclick: closeModal, 'aria-label': 'Close' }, '×'));
-    box.append(content); root.append(box); root.classList.add('open');
+    box.append(content); root.append(box); root.classList.add('open'); document.body.classList.add('modal-open');
   }
-  function closeModal() { const r = modalRoot(); r.classList.remove('open'); r.innerHTML = ''; if (SG.onModalClose) { const f = SG.onModalClose; SG.onModalClose = null; f(); } }
+  function closeModal() { const r = modalRoot(); r.classList.remove('open'); r.innerHTML = ''; document.body.classList.remove('modal-open'); if (SG.onModalClose) { const f = SG.onModalClose; SG.onModalClose = null; f(); } }
   function toast(title, text) {
-    const t = el('div', { class: 'toast' }, el('b', null, title), el('div', null, text));
-    const host = $('#toasts'); while (host.children.length >= 4) host.firstChild.remove();
-    host.append(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 9000);
+    const t = el('div', { class: 'toast' + (/^[🏆💰⬆]/.test(title) ? ' gold' : '') }, el('b', null, title), el('div', null, text));
+    const host = $('#toasts'); while (host.children.length >= 2) host.firstChild.remove();
+    host.append(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 4500);
   }
   function floatText(anchor, text, cls) {
     const r = anchor.getBoundingClientRect();
-    const f = el('div', { class: 'floater ' + (cls || ''), style: `left:${r.left + r.width / 2 + (Math.random() - 0.5) * 30}px; top:${r.top}px` }, text);
+    if (r.width === 0 || r.right < 0 || r.left > innerWidth || r.bottom < 0 || r.top > innerHeight) return; // off-screen: no floater
+    const x = Math.max(40, Math.min(innerWidth - 40, r.left + r.width / 2 + (Math.random() - 0.5) * 30));
+    const f = el('div', { class: 'floater ' + (cls || ''), style: `left:${x}px; top:${Math.max(70, r.top + 10)}px` }, text);
     document.body.append(f); setTimeout(() => f.remove(), 1300);
   }
 
@@ -459,7 +473,8 @@
     SG.STATIONS.forEach((s, idx) => {
       const st = S.st[s.id]; const on = st.on; const color = SG.STAGE_COLORS[s.id] || '#5fa8d3';
       const card = el('div', { class: 'station ' + (on ? 'on' : 'locked') + (s.parallel ? ' parallel' : ''), 'data-id': s.id, style: '--c:' + color });
-      card.append(el('div', { class: 'st-top' }, el('div', { class: 'st-title' }, el('div', { class: 'st-name' }, s.name), el('div', { class: 'st-stage' }, 'Stage ' + s.stage + ' · Module' + (s.modules.length > 1 ? 's ' : ' ') + s.modules.map(m => String(m).padStart(2, '0')).join(', '))),
+      const modLabel = s.modules.length > 3 ? 'Modules ' + String(s.modules[0]).padStart(2, '0') + '–' + String(s.modules[s.modules.length - 1]).padStart(2, '0') : 'Module' + (s.modules.length > 1 ? 's ' : ' ') + s.modules.map(m => String(m).padStart(2, '0')).join(', ');
+      card.append(el('div', { class: 'st-top' }, el('div', { class: 'st-title' }, el('div', { class: 'st-name' }, s.name), el('div', { class: 'st-stage' }, 'Stage ' + s.stage + ' · ' + modLabel)),
         on && !s.oneShot ? el('span', { class: 'lvl' }, 'L' + st.level + (tier(s) ? ' · T' + tier(s) : '')) : (on ? el('span', { class: 'lvl' }, 'built') : el('span', { class: 'lvl locked' }, 'locked'))));
       // illustration: the course's apparatus scene or glyph, clickable for a manual shift
       const icon = el('button', { class: 'st-art', title: on ? 'Run a manual shift' : 'Locked', onclick: () => manualShift(s, icon) });
@@ -468,33 +483,35 @@
       else if (art && art.glyph && window.SG_GLYPHS && window.SG_GLYPHS[art.glyph]) { icon.innerHTML = `<figure class="section-figure"><div class="sf-drawing"><svg viewBox="-54 -49 108 98" class="glyph">${window.SG_GLYPHS[art.glyph]}</svg></div></figure>`; }
       else icon.textContent = s.icon;
       if (!s.oneShot) icon.append(el('span', { class: 'ring' }, el('span', { html: '<svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" cx="22" cy="22" r="18"/></svg>' }), el('span', { class: 'ring-t' }, on ? '0%' : '')));
-      if (!on) icon.append(el('span', { class: 'lock-badge' }, '🔒'));
+      if (!on) icon.append(el('span', { class: 'lock-badge' }, ic('lock')));
       card.append(icon);
       if (!on) card.append(el('p', { class: 'st-short' }, s.short));
       if (s.parallel) card.append(el('div', { class: 'branch-note' }, 'Parallel branch: uses polished wafers, feeds CoWoS'));
       const status = el('div', { class: 'status' }); card.append(status);
       const actions = el('div', { class: 'actions' });
-      if (!on) actions.append(el('button', { class: 'btn primary unlock', onclick: () => unlock(s) }, s.cost === 0 ? '▶ Commission (free)' : `${s.oneShot ? 'Tape out' : 'Commission'} · ${fmt$(s.cost)}`));
+      if (!on) actions.append(el('button', { class: 'btn primary unlock', onclick: () => unlock(s) }, ic('play'), s.cost === 0 ? 'Commission (free)' : `${s.oneShot ? 'Tape out' : 'Commission'} · ${fmt$(s.cost)}`));
       else {
-        if (!s.oneShot) actions.append(el('button', { class: 'btn primary upg', onclick: () => upgrade(s) }, 'Upgrade'));
-        if (s.oneShot) actions.append(el('button', { class: 'btn primary', onclick: () => openLab('reticle') }, '📐 Design Studio'));
-        if (s.id === 'fab') actions.append(el('button', { class: 'btn' + (baysReady() ? '' : ' attention'), onclick: openFabFloor }, `🏗 Bays ${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6`), el('button', { class: 'btn', onclick: openNodeMigration }, '⬆ ' + S.node));
+        if (!s.oneShot) actions.append(el('button', { class: 'btn primary upg', onclick: () => upgrade(s) }, ic('up'), 'Upgrade'));
+        if (s.oneShot) actions.append(el('button', { class: 'btn primary', onclick: () => openLab('reticle') }, ic('ruler'), 'Design Studio'));
+        if (s.id === 'fab') actions.append(el('button', { class: 'btn' + (baysReady() ? '' : ' attention'), onclick: openFabFloor }, ic('building'), `Bays ${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6`), el('button', { class: 'btn', onclick: openNodeMigration, title: 'Process node' }, ic('chip'), S.node));
       }
       const more = el('div', { class: 'more' });
-      more.append(el('button', { class: 'btn ghost', onclick: () => openGuide(s) }, '📖 Guide'));
-      if (on && s.lab && !s.oneShot) more.append(el('button', { class: 'btn lab' + (S.labs[s.lab] ? ' done' : ''), onclick: () => openLab(s.lab) }, '🧪 ' + SG.LABS[s.lab].title));
-      if (on && s.lab2) more.append(el('button', { class: 'btn lab' + (S.labs[s.lab2] ? ' done' : ''), onclick: () => openLab(s.lab2) }, '🧪 ' + SG.LABS[s.lab2].title));
-      for (const p of SG.PUZZLES) if (on && p.station === s.id) more.append(el('button', { class: 'btn ghost' + (S.puzzles[p.id] ? ' done' : ''), onclick: () => openPuzzle(p) }, '🧩 Puzzle'));
-      if (on && SG.missions && SG.EXPLORE && SG.EXPLORE[s.id]) more.append(el('button', { class: 'btn ghost', onclick: () => SG.missions.explore(s.id, missionCtx, { title: s.name + ': interactives and figures' }) }, '🧭 Explore'));
+      more.append(el('button', { class: 'btn ghost', title: 'Field guide', onclick: () => openGuide(s) }, ic('book'), 'Guide'));
+      if (on && s.lab && !s.oneShot) more.append(el('button', { class: 'btn ghost' + (S.labs[s.lab] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab].title, onclick: () => openLab(s.lab) }, ic('flask'), SG.LABS[s.lab].title));
+      if (on && s.lab2) more.append(el('button', { class: 'btn ghost' + (S.labs[s.lab2] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab2].title, onclick: () => openLab(s.lab2) }, ic('flask'), SG.LABS[s.lab2].title));
+      for (const p of SG.PUZZLES) if (on && p.station === s.id) more.append(el('button', { class: 'btn ghost' + (S.puzzles[p.id] ? ' done' : ''), title: 'Puzzle: ' + p.title, onclick: () => openPuzzle(p) }, ic('puzzle'), p.title.length > 22 ? p.title.slice(0, 20) + '…' : p.title));
+      if (on && SG.missions && SG.EXPLORE && SG.EXPLORE[s.id]) more.append(el('button', { class: 'btn ghost', title: 'Interactives and figures', onclick: () => SG.missions.explore(s.id, missionCtx, { title: s.name + ': interactives and figures' }) }, ic('compass'), 'Explore'));
       card.append(actions, more);
       host.append(card);
       cards[s.id] = { card, status, actions, icon };
       if (idx < SG.STATIONS.length - 1) {
         const outRes = Object.keys(s.outputs)[0];
-        const belt = el('div', { class: 'belt', style: '--c:' + (outRes ? SG.RES[outRes].color : color) }, el('div', { class: 'belt-track' }), el('div', { class: 'belt-label' }, outRes ? (SG.RES_SHORT[outRes] || SG.RES[outRes].name) : ''));
+        const belt = el('div', { class: 'belt', style: '--c:' + (outRes ? SG.RES[outRes].color : color) }, el('div', { class: 'belt-track' }), el('div', { class: 'belt-label' }, outRes ? (SG.RES_SHORT[outRes] || SG.RES[outRes].name) : ''), el('div', { class: 'belt-rate' }, ''));
         host.append(belt); belts[s.id] = belt;
       }
     });
+    // minimap: one dot per station
+    const mm = $('#minimap'); if (mm) { mm.innerHTML = ''; SG.STATIONS.forEach(s => mm.append(el('span', { class: 'mm', 'data-id': s.id, style: '--c:' + (SG.STAGE_COLORS[s.id] || '#5fa8d3'), title: s.name, onclick: () => { const c = cards[s.id]; if (c) c.card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } }))); }
     renderResources(true); renderSide();
   }
   function updateChain() {
@@ -508,10 +525,13 @@
       if (s.oneShot) { c.status.innerHTML = S.design ? `<div class="small"><b>${S.design.name}</b>: ${S.design.n} × ${S.design.A} mm², ${S.design.h} HBM · ${S.design.model === 'poisson' ? 'Poisson' : S.design.model === 'murphy' ? 'Murphy' : 'negative binomial'} yield</div>` : '<div class="small warn">No design yet.</div>'; continue; }
       const f = flow[s.id]; const cap = capacity(s); const em = eventMult(s.id);
       const util = f ? f.util : 0; const fg = c.icon.querySelector('.ring-fg'); if (fg) { fg.style.strokeDasharray = `${(util * 113.1).toFixed(1)} 113.1`; } const rt = c.icon.querySelector('.ring-t'); if (rt) rt.textContent = pct(util);
+      const ring = c.icon.querySelector('.ring'); if (ring) { ring.classList.toggle('ok', util >= 0.98); ring.classList.toggle('warn', !!(f && f.starved) || (util > 0 && util < 0.5)); }
       c.card.classList.toggle('running', util > 0.02); c.card.classList.toggle('starved', !!(f && f.starved));
-      let html = `<div class="st-rate"><b>${f ? fmtN(f.rate) : 0}</b><span class="muted"> / ${fmtN(cap)} cycles/day</span></div>`;
-      const ins = Object.entries(s.inputs).map(([r, q]) => { const cap = warehouseCap(r); const p = isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock"><span class="stock-name" style="color:${SG.RES[r].color}">${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${fmtN(S.res[r])}</span></div>`; }).join('');
-      const outs = Object.entries(s.outputs).map(([r, q]) => { const cap = warehouseCap(r); const hasC = consumersOf(r).some(c => S.st[c.id].on); const p = hasC && isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock out"><span class="stock-name" style="color:${SG.RES[r].color}">→ ${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${hasC ? fmtN(S.res[r]) : 'sells'}</span></div>`; }).join('');
+      const mmDot = $('#minimap .mm[data-id="' + s.id + '"]'); if (mmDot) { mmDot.className = 'mm ' + (f && f.starved ? 'starved' : util > 0.02 ? 'on' : 'idle'); }
+      let html = `<div class="st-rate"><b>${f ? fmtN(f.rate) : 0}</b><span class="muted">/ ${fmtN(cap)} per day</span><div class="util-bar"><i style="width:${Math.round(util * 100)}%"></i></div></div>`;
+      const unitN = (r, v) => (['ingot', 'rack', 'gpu', 'pkg', 'hbm', 'die'].includes(r) ? fmtN(Math.floor(v)) : fmtN(v));
+      const ins = Object.entries(s.inputs).map(([r, q]) => { const cap = warehouseCap(r); const p = isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock"><span class="stock-name" style="color:${SG.RES[r].color}">${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${unitN(r, S.res[r])}<small> / ${isFinite(cap) ? fmtN(cap) : '∞'}</small></span></div>`; }).join('');
+      const outs = Object.entries(s.outputs).map(([r, q]) => { const cap = warehouseCap(r); const hasC = consumersOf(r).some(c => S.st[c.id].on); const p = hasC && isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock out"><span class="stock-name" style="color:${SG.RES[r].color}">→ ${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${hasC ? unitN(r, S.res[r]) + '<small> / ' + fmtN(cap) + '</small>' : '<small>sells</small>'}</span></div>`; }).join('');
       html += `<div class="stocks">${ins}${outs}</div>`;
       let msg = '';
       if (f && f.starved) msg = `<span class="warn">⏳ starved of ${f.starved}</span>`;
@@ -526,7 +546,7 @@
       html += `<div class="st-msg">${msg}${extra.length ? '<div class="small muted">' + extra.join(' · ') + '</div>' : ''}</div>`;
       c.status.innerHTML = html;
       const u = c.actions.querySelector('.upg'); if (u) { const uc = upgradeCost(s); u.innerHTML = `⬆ L${st.level + 1} <span class="price">${fmt$(uc)}</span>`; u.disabled = S.cash < uc; u.classList.toggle('affordable', S.cash >= uc); }
-      const belt = belts[s.id]; if (belt) { const rate = f ? f.util : 0; belt.classList.toggle('paused', !f || f.rate <= 0); belt.style.setProperty('--dur', (rate > 0 ? (3.2 - 2.4 * Math.min(1, rate)) : 3).toFixed(2) + 's'); }
+      const belt = belts[s.id]; if (belt) { const rate = f ? f.util : 0; belt.classList.toggle('paused', !f || f.rate <= 0); belt.style.setProperty('--dur', (rate > 0 ? (2.4 - 1.8 * Math.min(1, rate)) : 3).toFixed(2) + 's'); belt.style.setProperty('--gap', Math.round(30 - 18 * Math.min(1, rate)) + 'px'); const outRes = Object.keys(s.outputs)[0]; const br = belt.querySelector('.belt-rate'); if (br && outRes) br.textContent = f && f.rate > 0 ? fmtN(f.rate * resolveQty(s.outputs[outRes])) + '/d' : '—'; }
     }
   }
   const resRows = {};
@@ -554,13 +574,13 @@
     const host = $('#achievements'); if (!host) return; host.innerHTML = '';
     const earned = SG.ACHIEVEMENTS.filter(a => S.ach[a.id]).length;
     host.append(el('div', { class: 'small muted' }, `${earned}/${SG.ACHIEVEMENTS.length} earned · revenue ×${(1 + (S.achMult || 0)).toFixed(2)} from achievements · ×${knowledgeMult().toFixed(3)} from knowledge`));
-    for (const a of SG.ACHIEVEMENTS) host.append(el('div', { class: 'ach' + (S.ach[a.id] ? ' earned' : '') }, el('span', { class: 'ach-ic' }, S.ach[a.id] ? '🏆' : '○'), el('div', null, el('b', null, a.title), el('div', { class: 'small muted' }, a.text + ' · ' + (a.reward.mult ? '+' + Math.round(a.reward.mult * 100) + '% revenue' : '+' + fmt$(a.reward.cash))))));
+    for (const a of SG.ACHIEVEMENTS) host.append(el('div', { class: 'ach' + (S.ach[a.id] ? ' earned' : '') }, el('span', { class: 'ach-ic' }, ic('trophy')), el('div', null, el('b', null, a.title), el('div', { class: 'small muted' }, a.text + ' · ' + (a.reward.mult ? '+' + Math.round(a.reward.mult * 100) + '% revenue' : '+' + fmt$(a.reward.cash))))));
   }
   function renderHeader() {
     $('#h-day').textContent = String(Math.floor(S.day));
     shownCash += (S.cash - shownCash) * 0.35; if (Math.abs(S.cash - shownCash) < 1) shownCash = S.cash;
     $('#h-cash').textContent = fmt$(shownCash); $('#h-cash').classList.toggle('neg', S.cash < 0);
-    $('#h-income').textContent = (S.income >= 0 ? '+' : '') + fmt$(S.income) + '/day';
+    $('#h-income').textContent = (S.income >= 0 ? '+' : '') + fmt$(S.income) + '/day'; $('#h-income').classList.toggle('neg', S.income < 0);
     $('#h-d0').textContent = currentD0().toFixed(3) + '/cm²';
     $('#h-node').textContent = S.node + ' · ' + fmtN(S.wafersRun) + ' wafers';
     const total = Object.values(QUIZ).reduce((a, q) => a + q.questions.length, 0);
@@ -568,6 +588,8 @@
     $('#h-mult').textContent = '×' + revMult().toFixed(2);
     $('#h-events').textContent = S.events.length ? S.events.length + ' event' + (S.events.length > 1 ? 's' : '') : '';
     const o = objective(); $('#obj-text').textContent = o.text; $('#obj-fill').style.width = Math.round((o.pct || 0) * 100) + '%'; $('#obj-sub').textContent = o.sub || '';
+    const ready = (o.pct || 0) >= 1 && !!o.sub; $('#obj-tag').textContent = ready ? 'READY' : 'NEXT'; $('#obj-tag').classList.toggle('ready', ready);
+    const nextLocked = SG.STATIONS.find(s => !S.st[s.id].on); document.querySelectorAll('#minimap .mm').forEach(d => d.classList.toggle('next', !!nextLocked && d.dataset.id === nextLocked.id));
   }
   function flushFloaters() {
     let total = 0; let lastRes = null;
@@ -598,9 +620,22 @@
     $('#speed').value = String(S.speed == null ? 1 : S.speed);
     document.querySelectorAll('.side-tab').forEach(t => t.addEventListener('click', () => { document.querySelectorAll('.side-tab').forEach(x => x.classList.toggle('sel', x === t)); document.querySelectorAll('.side-pane').forEach(p => p.classList.toggle('show', p.id === t.dataset.pane)); }));
     buildChain(); renderLog(); renderHeader();
-    if (!S.log.length) { log('Welcome. You have a quartz claim and $300k. Build the chain from sand to a 72-GPU rack. Every station is a commissioning mission: brief, build it, tune the real thing, certify. Click a station icon to run a manual shift.', 'milestone'); showHelp(); }
+    if (PARAMS.has('demo')) { if (PARAMS.get('speed') != null) S.speed = Number(PARAMS.get('speed')); openView(PARAMS.get('open')); }
+    else if (!S.log.length) { log('Welcome. You have a quartz claim and $300k. Build the chain from sand to a 72-GPU rack. Every station is a commissioning mission: brief, build it, tune the real thing, certify. Click a station icon to run a manual shift.', 'milestone'); showHelp(); }
     else offlineProgress();
     requestAnimationFrame(frame);
+  }
+  // ?open=mission:furnace | fabfloor | node | study | risk | help | win | rush | lab:reticle | guide:cz | explore:cz | puzzle:litho | event:quake
+  function openView(spec) {
+    if (!spec) return; const [kind, id] = spec.split(':');
+    const views = { fabfloor: openFabFloor, node: openNodeMigration, study: openStudyHall, risk: openRisk, help: showHelp, win: showWin, rush: spawnRush };
+    if (views[kind]) return views[kind]();
+    if (kind === 'mission') return runMission(id, () => {});
+    if (kind === 'lab') return openLab(id);
+    if (kind === 'guide' && byId[id]) return openGuide(byId[id]);
+    if (kind === 'explore' && SG.missions) return SG.missions.explore(id, missionCtx, { title: (byId[id] ? byId[id].name : id) + ': interactives and figures' });
+    if (kind === 'puzzle') { const p = SG.PUZZLES.find(p => p.id === id); if (p) openPuzzle(p); return; }
+    if (kind === 'event') { const e = SG.EVENTS.find(e => e.id === id); if (e) { S.events.push({ id: e.id, endsDay: S.day + e.days }); fireEvent(e); } }
   }
   function showHelp() {
     modal(el('div', null,

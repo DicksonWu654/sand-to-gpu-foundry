@@ -115,7 +115,17 @@
     root.append(el('div', { class: 'tag' }, 'COMMISSIONING MISSION'), el('h2', null, M.title), strip, body, nav);
     ctx.modal(root, { wide: true });
     let briefIndex = 0;
-    function renderStrip() { strip.innerHTML = ''; phases.forEach((p, i) => strip.append(el('span', { class: 'phase' + (i === phase ? ' active' : i < phase ? ' done' : '') }, p))); }
+    function renderStrip() {
+      strip.innerHTML = '';
+      const nC = phases.filter(p => p === 'Commission').length; const firstC = phases.indexOf('Commission'); const lastC = phases.lastIndexOf('Commission');
+      const kinds = phases.filter((p, i) => p !== 'Commission' || i === firstC);
+      kinds.forEach(p => {
+        let cls = 'phase', label = p;
+        if (p === 'Commission') { const cur = phases.slice(0, phase + 1).filter(x => x === 'Commission').length; const active = phase >= firstC && phase <= lastC; cls += active ? ' active' : phase > lastC ? ' done' : ''; label = nC > 1 ? 'Commission ' + Math.max(1, Math.min(nC, cur)) + '/' + nC : 'Commission'; }
+        else { const i = phases.indexOf(p); cls += i === phase ? ' active' : i < phase ? ' done' : ''; }
+        strip.append(el('span', { class: cls }, label));
+      });
+    }
     function next() { phase++; if (phase >= phases.length) { ctx.closeModal(); onComplete(results); return; } renderPhase(); }
     function renderPhase() {
       renderStrip(); body.innerHTML = ''; nav.innerHTML = '';
