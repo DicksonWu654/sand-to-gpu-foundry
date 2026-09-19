@@ -253,7 +253,7 @@ SG.MILESTONES = [
 ];
 
 // Stage colours for the belt and cards.
-SG.STAGE_COLORS = { mine: '#d9c58b', furnace: '#e3a15a', siemens: '#c7d3e3', cz: '#8fb5d9', wafering: '#7ec8e3', design: '#b0a0cf', fab: '#5fa8d3', sort: '#62d4a0', hbm: '#f2b880', cowos: '#e59a6b', test: '#e8875f', systems: '#f06c5f' };
+SG.STAGE_COLORS = { mine: '#b9ab8c', furnace: '#e3a15a', siemens: '#c7d3e3', cz: '#8fb5d9', wafering: '#7ec8e3', design: '#b0a0cf', fab: '#5fa8d3', sort: '#62d4a0', hbm: '#f2b880', cowos: '#e59a6b', test: '#e8875f', systems: '#f06c5f' };
 
 // Rush orders: the golden-cookie analogue. Click within the window to collect.
 SG.RUSH = [

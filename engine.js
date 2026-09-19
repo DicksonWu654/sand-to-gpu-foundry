@@ -339,9 +339,9 @@
   function upgrade(s) {
     const c = upgradeCost(s); if (S.cash < c) return;
     S.cash -= c; S.stats.capex += c; S.st[s.id].level++;
-    const card = cards[s.id]; if (card) floatText(card.card.querySelector('.st-icon'), 'L' + S.st[s.id].level, 'gold');
+    const card = cards[s.id]; if (card) { floatText(card.icon, 'L' + S.st[s.id].level, 'gold'); card.card.classList.remove('flash'); void card.card.offsetWidth; card.card.classList.add('flash'); }
     if (S.st[s.id].level % 5 === 0) { toast('⚙ Automation tier ' + tier(s), `${s.name} reached level ${S.st[s.id].level}: +25% throughput per tier.`); log(`${s.name} reached automation tier ${tier(s)}.`, 'ach'); }
-    save(); buildChain();
+    save(); buildChain(); const nc = cards[s.id]; if (nc) nc.card.classList.add('flash');
   }
   function openGuide(s) {
     const g = s.guide;
@@ -416,14 +416,15 @@
     ), { wide: true });
   }
   function openFabFloor() {
-    const order = ['bay-clean', 'bay-oxdep', 'bay-litho', 'bay-etch', 'bay-implant', 'bay-feol', 'bay-beol', 'bay-metro'];
+    // serpentine layout: the wafer route runs left→right along the top row and right→left along the bottom row
+    const order = ['bay-clean', 'bay-oxdep', 'bay-litho', 'bay-etch', 'bay-metro', 'bay-beol', 'bay-feol', 'bay-implant'];
     const floor = el('div', { class: 'floor' });
-    order.forEach((id, i) => {
-      const M = SG.MISSIONS[id]; const done = !!S.bays[id]; const req = REQUIRED_BAYS.includes(id);
+    order.forEach(id => {
+      const M = SG.MISSIONS[id]; const done = !!S.bays[id]; const req = REQUIRED_BAYS.includes(id); const step = REQUIRED_BAYS.indexOf(id) + 1;
       const tile = el('div', { class: 'bay-tile' + (done ? ' done' : '') + (req ? ' req' : ' opt'), 'data-bay': id },
-        el('span', { class: 'bay-n' }, 'BAY ' + (i + 1) + ' · ' + (req ? 'REQUIRED' : 'OPTIONAL · +10%')),
-        el('b', null, M.title.replace(/ bay.*$/i, '').replace(/^Cleanroom & AMHS$/, 'Cleanroom & AMHS')),
-        el('span', { class: 'small' }, (M.commission || []).map(c => c.widget.replace(/-/g, ' ')).join(' · ')),
+        el('span', { class: 'bay-n' }, req ? 'STEP ' + step + ' OF 6 · REQUIRED' : 'SUPPORT · OPTIONAL +10%'),
+        el('b', null, M.title.replace(/ bay.*$/i, '')),
+        el('span', { class: 'small' }, M.brief[0].h),
         done ? el('span', { class: 'ok small' }, ic('check'), 'commissioned' + (S.missions[id] ? ` · ${S.missions[id].targets}/${S.missions[id].targetsTotal} targets` : ''))
           : el('button', { class: 'btn primary small', disabled: S.cash < M.cost ? '' : null, onclick: () => { if (S.cash < M.cost) return; runMission(id, results => { S.cash -= M.cost; S.stats.capex += M.cost; S.bays[id] = true; applyMissionBonus('fab', results, true); log('Commissioned ' + M.title + ' for ' + fmt$(M.cost), 'build'); toast('✅ Bay commissioned', M.title); buildChain(); save(); openFabFloor(); }); } }, 'Commission · ' + fmt$(M.cost)));
       floor.append(tile);
@@ -445,10 +446,10 @@
     const stops = [['N5', 16000, 1], ['N3', 19000, 1.35], ['N2', 30000, 1.7]];
     const timeline = el('div', { class: 'timeline' }, stops.map(([n, price, dens], i) => el('div', { class: 'tl-stop' + (i < cur ? ' done' : i === cur ? ' cur' : '') }, el('div', { class: 'tl-dot' }), el('b', null, n), el('span', { class: 'small' }, `${fmt$(price)}/wafer · silicon ×${dens}`))));
     // the yield learning curve on this node: D0 = 0.05 + 0.45·e^(−wafers/20,000)
-    const W = 600, H = 150, pad = 30; const xs = w => pad + (w / 100000) * (W - pad - 10); const ys = d => H - 22 - (d / 0.5) * (H - 40);
-    let d = ''; for (let w = 0; w <= 100000; w += 2000) d += (w ? 'L' : 'M') + xs(w).toFixed(1) + ' ' + ys(0.05 + 0.45 * Math.exp(-w / 20000)).toFixed(1);
-    const cx = xs(Math.min(100000, S.wafersRun)), cy = ys(currentD0());
-    const curve = el('div', { html: `<svg class="curve" viewBox="0 0 ${W} ${H}"><path d="M${pad} ${H - 22}H${W - 10}" stroke="#34445a" stroke-width="1"/><path d="M${pad} ${ys(0.5)}V${H - 22}" stroke="#34445a" stroke-width="1"/><path d="${d}" fill="none" stroke="#62b1e0" stroke-width="2.5"/><path d="M${pad} ${ys(0.1)}H${W - 10}" stroke="#5fd6a3" stroke-width="1" stroke-dasharray="4 4"/><text x="${pad + 8}" y="${ys(0.1) - 5}" fill="#5fd6a3" font-size="10" font-family="JetBrains Mono, monospace">mature D0 ≈ 0.1</text><circle cx="${cx}" cy="${cy}" r="6" fill="#f3cd6e"/><text x="${cx > W * 0.6 ? cx - 12 : cx + 12}" y="${cy - 14}" fill="#f3cd6e" font-size="11" text-anchor="${cx > W * 0.6 ? 'end' : 'start'}" font-family="JetBrains Mono, monospace">you: ${currentD0().toFixed(3)} after ${fmtN(S.wafersRun)} wafers</text><text x="${pad}" y="${H - 6}" fill="#8d9aab" font-size="10" font-family="JetBrains Mono, monospace">0</text><text x="${W - 10}" y="${H - 6}" fill="#8d9aab" font-size="10" text-anchor="end" font-family="JetBrains Mono, monospace">100k wafers run on this node</text><text x="${pad + 4}" y="${ys(0.5) + 10}" fill="#8d9aab" font-size="10" font-family="JetBrains Mono, monospace">D0 0.5/cm²</text></svg>` });
+    const W = 600, H = 150, pad = 30; const XM = Math.max(100000, S.wafersRun * 1.15); const xs = w => pad + (w / XM) * (W - pad - 10); const ys = d => H - 22 - (d / 0.5) * (H - 40);
+    let d = ''; for (let w = 0; w <= XM; w += XM / 60) d += (w ? 'L' : 'M') + xs(w).toFixed(1) + ' ' + ys(0.05 + 0.45 * Math.exp(-w / 20000)).toFixed(1);
+    const cx = xs(S.wafersRun), cy = ys(currentD0());
+    const curve = el('div', { html: `<svg class="curve" viewBox="0 0 ${W} ${H}"><path d="M${pad} ${H - 22}H${W - 10}" stroke="#34445a" stroke-width="1"/><path d="M${pad} ${ys(0.5)}V${H - 22}" stroke="#34445a" stroke-width="1"/><path d="${d}" fill="none" stroke="#62b1e0" stroke-width="2.5"/><path d="M${pad} ${ys(0.1)}H${W - 10}" stroke="#5fd6a3" stroke-width="1" stroke-dasharray="4 4"/><text x="${pad + 8}" y="${ys(0.1) - 5}" fill="#5fd6a3" font-size="10" font-family="JetBrains Mono, monospace">mature D0 ≈ 0.1</text><circle cx="${cx}" cy="${cy}" r="6" fill="#f3cd6e"/><text x="${cx > W * 0.6 ? cx - 12 : cx + 12}" y="${cy - 14}" fill="#f3cd6e" font-size="11" text-anchor="${cx > W * 0.6 ? 'end' : 'start'}" font-family="JetBrains Mono, monospace">you: ${currentD0().toFixed(3)} after ${fmtN(S.wafersRun)} wafers</text><text x="${pad}" y="${H - 6}" fill="#8d9aab" font-size="10" font-family="JetBrains Mono, monospace">0</text><text x="${W - 10}" y="${H - 6}" fill="#8d9aab" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">${fmtN(XM)} wafers run on this node</text><text x="${pad + 4}" y="${ys(0.5) + 11}" fill="#8d9aab" font-size="11" font-family="JetBrains Mono, monospace">D0 0.5/cm²</text></svg>`.replace(/font-size="10"/g, 'font-size="11"') });
     const body = el('div', null, el('div', { class: 'tag' }, 'PROCESS NODE · Modules 11, 20'), el('h2', null, 'Current node: ' + S.node), timeline, curve,
       el('p', null, `Finished wafers sell for ${fmt$(S.nodeFx.waferPrice)}, fab opex is ${fmt$(S.nodeFx.opex)} per wafer, and your GPU's silicon is worth ×${S.nodeFx.density} per mm² versus N5. Every node starts its own learning curve: D0 falls only with wafers run on it.`));
     if (!id) body.append(el('p', { class: 'ok' }, 'You are on the leading node. Push D0 down and redesign for it.'));
@@ -508,14 +509,16 @@
       if (!s.oneShot) icon.append(el('span', { class: 'ring' }, el('span', { html: '<svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" cx="22" cy="22" r="18"/></svg>' }), on ? el('span', { class: 'ring-t' }, '0%') : ic('lock')));
       card.append(icon, topRow);
       if (!on) card.append(el('p', { class: 'st-short' }, s.short));
-      if (s.parallel) card.append(el('div', { class: 'branch-note' }, 'Parallel branch: uses polished wafers, feeds CoWoS'));
+      if (s.parallel) icon.append(el('span', { class: 'lvl par', title: 'Parallel branch: uses polished wafers, feeds CoWoS' }, 'PARALLEL'));
       const status = el('div', { class: 'status' }); card.append(status);
       const actions = el('div', { class: 'actions' });
       if (!on) actions.append(el('button', { class: 'btn primary unlock', onclick: () => unlock(s) }, ic('play'), s.cost === 0 ? 'Commission (free)' : `${s.oneShot ? 'Tape out' : 'Commission'} · ${fmt$(s.cost)}`));
       else {
         if (!s.oneShot) actions.append(el('button', { class: 'btn primary upg', onclick: () => upgrade(s) }, ic('up'), 'Upgrade'));
         if (s.oneShot) actions.append(el('button', { class: 'btn primary', onclick: () => openLab('reticle') }, ic('ruler'), 'Design Studio'));
-        if (s.id === 'fab') actions.append(el('button', { class: 'btn' + (baysReady() ? '' : ' attention'), onclick: openFabFloor }, ic('building'), `Bays ${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6`), el('button', { class: 'btn', onclick: openNodeMigration, title: 'Process node' }, ic('chip'), S.node));
+        if (s.id === 'fab') icon.append(el('span', { class: 'art-chips' },
+          el('span', { class: 'chip-btn' + (baysReady() ? '' : ' attention'), role: 'button', title: 'Fab floor', onclick: e => { e.stopPropagation(); openFabFloor(); } }, ic('building'), `Bays ${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6`),
+          el('span', { class: 'chip-btn', role: 'button', title: 'Process node', onclick: e => { e.stopPropagation(); openNodeMigration(); } }, ic('chip'), S.node)));
       }
       const more = el('div', { class: 'more' });
       more.append(el('button', { class: 'btn ghost', title: 'Field guide', onclick: () => openGuide(s) }, ic('book'), 'Guide'));
@@ -559,7 +562,7 @@
       const mmDot = $('#minimap .mm[data-id="' + s.id + '"]'); if (mmDot) { mmDot.className = 'mm ' + (f && f.starved ? 'starved' : util > 0.02 ? 'on' : 'idle'); }
       let html = `<div class="st-rate"><b>${f ? fmtN(f.rate) : 0}</b><span class="muted">/ ${fmtN(cap)} per day</span><div class="util-bar"><i style="width:${Math.round(util * 100)}%"></i></div></div>`;
       const unitN = (r, v) => (['ingot', 'rack', 'gpu', 'pkg', 'hbm', 'die'].includes(r) ? fmtN(Math.floor(v)) : fmtN(v));
-      const ins = Object.entries(s.inputs).map(([r, q]) => { const cap = warehouseCap(r); const p = isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock${f && f.starved === SG.RES[r].name ? ' short' : ''}"><span class="stock-name" style="color:${SG.RES[r].color}">${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${unitN(r, S.res[r])}<small> / ${isFinite(cap) ? fmtN(cap) : '∞'}</small></span></div>`; }).join('');
+      const ins = Object.entries(s.inputs).map(([r, q]) => { const cap = warehouseCap(r); const p = isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock${f && f.starved && S.res[r] < resolveQty(q) ? ' short' : ''}"><span class="stock-name" style="color:${SG.RES[r].color}">${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${unitN(r, S.res[r])}<small> / ${isFinite(cap) ? fmtN(cap) : '∞'}</small></span></div>`; }).join('');
       const outs = Object.entries(s.outputs).map(([r, q]) => { const cap = warehouseCap(r); const hasC = consumersOf(r).some(c => S.st[c.id].on); const p = hasC && isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock out"><span class="stock-name" style="color:${SG.RES[r].color}">→ ${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${hasC ? unitN(r, S.res[r]) + '<small> / ' + fmtN(cap) + '</small>' : '<small>sells</small>'}</span></div>`; }).join('');
       html += `<div class="stocks">${ins}${outs}</div>`;
       let msg = '';
@@ -651,6 +654,12 @@
     $('#speed').value = String(S.speed == null ? 1 : S.speed);
     document.querySelectorAll('.side-tab').forEach(t => t.addEventListener('click', () => { document.querySelectorAll('.side-tab').forEach(x => x.classList.toggle('sel', x === t)); document.querySelectorAll('.side-pane').forEach(p => p.classList.toggle('show', p.id === t.dataset.pane)); }));
     buildChain(); renderLog(); renderHeader();
+    // establishing shot: pan from the rack end of the line back to the mine
+    const wrap = $('.chain-wrap');
+    if (wrap && !PARAMS.has('open') && wrap.scrollWidth > wrap.clientWidth + 40) {
+      const from = wrap.scrollWidth - wrap.clientWidth; wrap.scrollLeft = from; const t0 = performance.now();
+      (function pan(now) { const k = Math.min(1, (now - t0) / 1400); wrap.scrollLeft = from * Math.pow(1 - k, 3); if (k < 1) requestAnimationFrame(pan); })(t0);
+    }
     if (PARAMS.has('demo')) { if (PARAMS.get('speed') != null) S.speed = Number(PARAMS.get('speed')); openView(PARAMS.get('open')); }
     else if (!S.log.length) { log('Welcome. You have a quartz claim and $300k. Build the chain from sand to a 72-GPU rack. Every station is a commissioning mission: brief, build it, tune the real thing, certify. Click a station icon to run a manual shift.', 'milestone'); showHelp(); }
     else offlineProgress();

@@ -5,12 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Widget</title>
 <link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="course/styles.css">
 <style>
-  /* the game's palette, so the course widget sits inside the game's modal without a seam */
-  html[data-theme="dark"] { --ground: #0e141c; --panel: #0e141c; --panel2: #1a2330; --ink: #e9eef5; --muted: #8d9aab; --line: #243040; --line2: #34445a; --accent: #62b1e0; --accent2: #b0a0cf; --si: #8bbdc1; --cu: #e59a6b; --ok: #5fd6a3; --warn: #f3bd7e; --bad: #f2705f; --shadow: none; }
-  html, body { margin: 0; background: var(--panel); }
+  /* the game's palette, so the course widget sits inside the game's modal without a seam
+     (html:root[...] outranks the course stylesheet's :root[data-theme] rules) */
+  html:root[data-theme="dark"] { --ground: #0e141c; --panel: #0e141c; --panel2: #1a2330; --ink: #e9eef5; --muted: #8d9aab; --line: #243040; --line2: #34445a; --accent: #62b1e0; --accent2: #b0a0cf; --si: #8bbdc1; --cu: #e59a6b; --ok: #5fd6a3; --warn: #f3bd7e; --bad: #f2705f; --shadow: none; --serif: "Inter", system-ui, sans-serif; --sans: "Bricolage Grotesque", "Inter", system-ui, sans-serif; }
+  html, body { margin: 0; background: var(--ground) !important; }
+  html:root[data-theme="dark"] body { font-family: "Inter", system-ui, sans-serif; color: var(--ink); }
   body { padding: 10px 12px 16px; }
+  .widget { background: var(--panel) !important; border-color: var(--line) !important; }
   .article { max-width: none; margin: 0; }
   .widget { margin: 0; }
   #err { color: var(--bad); font-family: var(--sans); font-size: 13px; }

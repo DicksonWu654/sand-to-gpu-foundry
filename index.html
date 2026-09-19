@@ -67,14 +67,15 @@
 <main>
   <section class="chain-wrap"><div id="chain" class="chain"></div></section>
   <section class="panels">
-    <div class="panel">
-      <h3>Warehouse &amp; markets</h3>
-      <p class="small muted">Auto keeps a 30-day warehouse for the next station and sells the surplus on the spot market. The last station's output is always sold.</p>
-      <div id="resources"></div>
-    </div>
-    <div class="panel side">
-      <div class="side-tabs"><button class="side-tab sel" data-pane="log">Log</button><button class="side-tab" data-pane="achievements">Achievements</button></div>
-      <div id="log" class="side-pane show"></div>
+    <div class="panel drawer">
+      <div class="drawer-head"><span class="label">Control room</span>
+        <div class="side-tabs"><button class="side-tab sel" data-pane="warehouse">Warehouse</button><button class="side-tab" data-pane="log">Log</button><button class="side-tab" data-pane="achievements">Achievements</button></div>
+      </div>
+      <div id="warehouse" class="side-pane show">
+        <p class="small muted">Auto keeps a 30-day warehouse for the next station and sells the surplus on the spot market. The last station's output is always sold.</p>
+        <div id="resources"></div>
+      </div>
+      <div id="log" class="side-pane"></div>
       <div id="achievements" class="side-pane"></div>
     </div>
   </section>
