@@ -231,7 +231,7 @@
     }
   }
   function fireEvent(forced) {
-    const candidates = SG.EVENTS.filter(e => !S.events.some(x => x.id === e.id) && (!e.station || S.st[e.station].on));
+    const candidates = SG.EVENTS.filter(e => !S.events.some(x => x.id === e.id) && (!e.station || S.st[e.station].on) && (!e.priceMult || Object.keys(e.priceMult).some(r => producerOf(r) && S.st[producerOf(r).id].on)));
     if (!forced && !candidates.length) return;
     const e = forced || candidates[Math.floor(Math.random() * candidates.length)];
     if (!forced) S.events.push({ id: e.id, endsDay: S.day + e.days });
@@ -257,7 +257,7 @@
     if ($('.rush') || S.contract) return;
     const ep = endProduct(); if (!ep) return;
     if (consumersOf(ep.r).some(c => S.st[c.id].on)) return; // only the end product, which has no consumer yet
-    const f = flow[ep.s.id]; const perDay = (f ? f.rate : 0) * resolveQty(ep.s.outputs[ep.r]); if (!(perDay > 0)) return; // sized on actual output, not capacity
+    const f = flow[ep.s.id]; const perDay = (f && f.rate > 0 ? f.rate : capacity(ep.s)) * resolveQty(ep.s.outputs[ep.r]); if (!(perDay > 0)) return; // sized on actual output (capacity only before the first tick)
     const c = SG.CONTRACTS[Math.floor(Math.random() * SG.CONTRACTS.length)];
     const n = Math.max(1, Math.round(perDay * 10)); const days = 8; const price = priceOf(ep.r) * 1.3;
     const btn = el('button', { class: 'rush', style: `left:${10 + Math.random() * 70}%; top:${20 + Math.random() * 50}%` }, el('b', null, ic('flag'), 'Contract offer'), el('span', null, `${c.title}: ${fmtN(n)} ${SG.RES_SHORT[ep.r] || ep.r} in ${days} days at +30%`));
