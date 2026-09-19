@@ -390,7 +390,7 @@
     const g = s.guide;
     modal(el('div', { class: 'guide' },
       el('div', { class: 'tag' }, 'FIELD GUIDE · Stage ' + s.stage + ' · Module' + (s.modules.length > 1 ? 's ' : ' ') + s.modules.map(m => String(m).padStart(2, '0')).join(', ')),
-      el('h2', null, s.icon + ' ' + s.name),
+      el('h2', null, ic('book', 'h-ic'), s.name),
       el('p', null, el('b', null, 'What comes in: '), g.in), el('p', null, el('b', null, 'What goes out: '), g.out),
       el('p', null, el('b', null, 'The constraint that makes it hard: '), g.constraint),
       el('h3', null, 'Key numbers'), el('ul', null, g.numbers.map(n => el('li', null, n))),

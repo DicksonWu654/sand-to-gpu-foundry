@@ -18,7 +18,7 @@ SG.LABS.cz = {
     const best = S.labs.cz ? `Best so far: score ${Math.round(S.labs.cz.score * 100)} → ${S.labs.cz.wpi} wafers per ingot.` : 'No run yet: your wafering plant gets 1,300 wafers per ingot by default.';
     host.append(
       el('div', { class: 'tag' }, 'LAB · Module 02 · Czochralski growth'),
-      el('h2', null, '🧊 Crystal Puller'),
+      el('h2', null, el('span', { class: 'h-ic', html: '<svg class="ic"><use href="#i-chip"/></svg>' }), 'Crystal Puller'),
       el('p', null, 'Grow the 300 mm body. Keep the diameter at 305 ± 3 mm while the melt drifts (the crucible level drops and the hot zone changes as the charge is consumed). Two actuators, as in a real puller: ', el('b', null, 'pull rate'), ' acts immediately, ', el('b', null, 'heater power'), ' acts with a lag. Hotter melt or faster pull both make the crystal thinner. Stay inside the pull-rate window (0.5–1.0 mm/min, the 300 mm range, standing in for v/G) or the crystal goes vacancy-rich (COPs) or interstitial-rich (dislocation loops).'),
       canvas,
       el('div', { class: 'controls' },
@@ -113,7 +113,7 @@ SG.LABS.reticle = {
     const presetRow = el('div', { class: 'preset-row' }, presets.map(p => el('button', { class: 'chip', onclick: () => { aS.value = p.A; nS.value = p.n; hS.value = p.h; nameIn.value = p.name; render(); } }, p.name)));
     host.append(
       el('div', { class: 'tag' }, 'LAB · Modules 13, 19 · die size, yield and the reticle limit'),
-      el('h2', null, '📐 Design Studio'),
+      el('h2', null, el('span', { class: 'h-ic', html: '<svg class="ic"><use href="#i-ruler"/></svg>' }), 'Design Studio'),
       el('p', null, 'Choose the die. Dies per wafer fall with area; yield falls with area × D0; price rises with silicon and memory. The reticle field is 26 × 33 mm = 858 mm², so no single die can be bigger: that is why Blackwell is two ~800 mm² dies on one package. ', el('b', null, 'Every redesign after the first costs a new mask set (' + fmt$(25e6) + ').')),
       presetRow,
       el('div', { class: 'design-grid' },
@@ -201,7 +201,7 @@ SG.LABS.litho = {
     const table = el('table', { class: 'litho' }); const summary = el('div', { class: 'readout' }); const commit = el('button', { class: 'btn primary' }, 'Lock in this recipe');
     host.append(
       el('div', { class: 'tag' }, 'LAB · Modules 07, 08 · Rayleigh criterion and multi-patterning'),
-      el('h2', null, '🔦 Litho Planner'),
+      el('h2', null, el('span', { class: 'h-ic', html: '<svg class="ic"><use href="#i-flask"/></svg>' }), 'Litho Planner'),
       el('p', null, 'Minimum printable pitch = 2 × k1 × λ / NA (Rayleigh, with practical k1 ≈ 0.28–0.32). Multi-patterning divides the pitch but multiplies the passes and adds etch and spacer steps. Assign a tool and a patterning scheme to every layer group so that each meets its target pitch at the lowest cost per wafer (costs here are relative: what matters is that an EUV pass is ~2–3× an ArF immersion pass). The optimum is ', el('b', null, fmt$(optTotal)), ' per wafer for these 20 layers; your fab opex falls by up to 25% as you approach it.'),
       table, summary, commit
     );
@@ -247,7 +247,7 @@ SG.LABS.oxide = {
     const out = el('div', { class: 'readout' }); const list = el('div', { class: 'targets' });
     host.append(
       el('div', { class: 'tag' }, 'LAB · Module 06 · Deal-Grove oxidation'),
-      el('h2', null, '🔥 Oxide Lab'),
+      el('h2', null, el('span', { class: 'h-ic', html: '<svg class="ic"><use href="#i-flask"/></svg>' }), 'Oxide Lab'),
       el('p', null, 'Thermal oxidation follows x² + A·x = B·(t + τ). Thin oxide grows linearly (the surface reaction limits it); thick oxide grows as √t (oxygen must diffuse through the oxide already there, so doubling the thickness takes four times as long). Wet oxidation is much faster than dry and gives a slightly less dense film. Hit each target within ±5% with the least furnace time. (The rapid initial growth of very thin dry oxides, the τ term, is left out here, so the model is only trustworthy above ~20 nm.)'),
       el('div', { class: 'controls' }, el('label', null, 'Ambient: ', amb), el('label', null, 'Temperature: ', el('b', { id: 'oT' }), T), el('label', null, 'Time: ', el('b', { id: 'ot' }), tm)),
       canvas, out, list,
@@ -314,7 +314,7 @@ SG.LABS.hbm = {
     const hRow = el('div', { class: 'preset-row' }); const tRow = el('div', { class: 'preset-row' }); const bRow = el('div', { class: 'preset-row' });
     host.append(
       el('div', { class: 'tag' }, 'LAB · Module 15 · compound yield and known-good dies'),
-      el('h2', null, '🧱 HBM Stacker'),
+      el('h2', null, el('span', { class: 'h-ic', html: '<svg class="ic"><use href="#i-flask"/></svg>' }), 'HBM Stacker'),
       el('p', null, 'A stack of n DRAM dies plus a base die is only good if every one of the n + 1 dies is good and every one of the n bonds succeeds: stack yield = (1 − escape)ⁿ⁺¹ × bondⁿ. Per-die testing costs money on every die, including the ones that would have been fine; skipping it scraps whole stacks after they have consumed twelve good dies\' worth of work. Pick the height, the test rigor and the bonding method. (HBM3E caps the stack at 720 µm; HBM4 raised it to 775 µm, so a 16-high of ~30 µm dies still fits with microbumps, with little margin: in this model 16-high microbump stacks pay a handling penalty.)'),
       el('h3', null, 'Stack height'), hRow, el('h3', null, 'Known-good-die test'), tRow, el('h3', null, 'Bonding'), bRow, out, commit
     );
@@ -372,7 +372,7 @@ SG.LABS.test = {
     const out = el('div', { class: 'readout' }); const commit = el('button', { class: 'btn primary' }, 'Adopt this test flow');
     host.append(
       el('div', { class: 'tag' }, 'LAB · Module 18 · burn-in, Arrhenius and the rule of ten'),
-      el('h2', null, '🌡 Test Strategy'),
+      el('h2', null, el('span', { class: 'h-ic', html: '<svg class="ic"><use href="#i-flask"/></svg>' }), 'Test Strategy'),
       el('p', null, `Illustrative model: about ${pct(LATENT)} of packaged GPUs carry a latent defect that ATE cannot see (the course puts SLT fallout at ~0.5–2% of parts that passed ATE). Burn-in at 125 °C ages a part ≈78× faster than 55 °C service (Ea = 0.7 eV), so 10 h ≈ 780 field hours; the fraction of infant-mortality failures forced out is modelled as 1 − e^(−h·78/700), where the 700 h time constant is a modelling choice. Every hour also costs money and slightly overstresses good parts. An escape that fails in the field is charged ${fmt$(FIELD)} here: the course's rule-of-ten $10,000 replacement plus an interrupted training job. Find the cheapest flow per unit.`),
       el('h3', null, 'Package ATE'), aRow, el('h3', null, 'Burn-in hours'), bRow, el('h3', null, 'System-level test'), sRow, out, commit
     );

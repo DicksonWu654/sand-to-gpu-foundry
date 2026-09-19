@@ -360,7 +360,8 @@ table.litho select { max-width: 200px; }
 .st-msg > span { display: inline-flex; align-items: center; gap: 6px; }
 .st-msg .small { display: block; margin-top: 3px; }
 .station.locked .ring { width: 40px; height: 40px; right: 10px; top: 10px; }
-.station.locked .ring svg { display: none; }
+.station.locked .ring > span { display: none; }
+.station.locked .ring > svg.ic { display: block; width: 18px; height: 18px; margin: 0; color: var(--muted); }
 .st-art .glyph { transform: scale(1.45); }
 .tile.cash .tile-s { font-size: 12.5px; color: var(--ok); font-weight: 600; }
 .tile.cash .tile-s.neg { color: var(--bad); }
@@ -374,3 +375,4 @@ table.litho select { max-width: 200px; }
 @media (min-width: 701px) { .toasts { display: none; } }
 #contract-line { margin-top: 2px; font-family: var(--mono); font-size: 11.5px; }
 @media (max-width: 700px) { .drawer-head .label { display: none; } .side-tabs { overflow-x: auto; flex: 1; } .ticker { display: none; } }
+.h-ic .ic, .ic.h-ic { width: 22px; height: 22px; vertical-align: -4px; margin-right: 8px; color: var(--accent); }
