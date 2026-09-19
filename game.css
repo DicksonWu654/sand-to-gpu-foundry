@@ -11,7 +11,7 @@
 html, body { margin: 0; color: var(--text); font: 14px/1.5 var(--body); min-height: 100vh; }
 body { background: var(--bg); }
 /* fixed backdrop layer (background-attachment: fixed repaints badly on mobile) */
-body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background:
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; transform: translateZ(0); background:
     radial-gradient(120% 80% at 50% 0, transparent 55%, rgba(0, 0, 0, .55)),
     radial-gradient(900px 420px at 15% -8%, rgba(98, 177, 224, .14), transparent 60%),
     radial-gradient(700px 400px at 95% 10%, rgba(242, 156, 95, .09), transparent 60%),

@@ -303,7 +303,7 @@
     const host = $('#toasts'); while (host.children.length >= 2) host.firstChild.remove();
     host.append(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 4500);
     // desktop: a one-line ticker in the control-room header instead of floating cards
-    const tk = $('#ticker'); if (tk) { const item = el('span', { class: 'tick' + (gold ? ' gold' : ''), title: text }, title); tk.prepend(item); while (tk.children.length > 2) tk.lastChild.remove(); }
+    const tk = $('#ticker'); if (tk) { const clean = title.replace(/^[^\p{L}\p{N}$+]+\s*/u, ''); const item = el('span', { class: 'tick' + (gold ? ' gold' : ''), title: text }, ic(gold ? 'trophy' : 'check', 'inline'), clean); tk.prepend(item); while (tk.children.length > 2) tk.lastChild.remove(); }
   }
   function floatText(anchor, text, cls) {
     const r = anchor.getBoundingClientRect();
@@ -480,7 +480,7 @@
       }
     });
     modal(el('div', null, el('div', { class: 'tag' }, 'FAB FLOOR · Modules 05–13'), el('h2', null, 'The eight bays'),
-      el('p', null, `A fab is a floor of tool bays that every wafer visits dozens of times; the dashed route is the wafer's path through the six process bays. They must all be commissioned before the first wafer moves (${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6 done). Each bay is its own mission; targets reached in the bays lower your killer-defect density permanently.`),
+      el('p', null, `A fab is a floor of tool bays that every wafer visits dozens of times; follow the chevrons for the wafer's path through the six process bays. They must all be commissioned before the first wafer moves (${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6 done). Each bay is its own mission; targets reached in the bays lower your killer-defect density permanently.`),
       floor), { wide: true });
   }
   function openNodeMigration() {
@@ -529,7 +529,7 @@
     if (S.st.mine.on && !S.st.furnace.on && S.cash < byId.furnace.cost) return { text: `Arc Furnace · ${fmt$(byId.furnace.cost)} — sell quartz, or click the mine to run manual shifts.`, pct: Math.min(1, S.cash / byId.furnace.cost), sub: sub(byId.furnace.cost) };
     if (S.st.fab.on && !baysReady()) { const done = REQUIRED_BAYS.filter(b => S.bays[b]).length; const next = REQUIRED_BAYS.find(b => !S.bays[b]); const M = SG.MISSIONS[next]; return { text: `${M.title} · ${fmt$(M.cost)} — bays ${done}/6; you are outsourcing ${6 - done} step${6 - done > 1 ? 's' : ''} at ${fmt$(outsourceFee())}/wafer.`, pct: Math.min(1, S.cash / M.cost), sub: sub(M.cost) }; }
     if (nextLocked) return { text: `${nextLocked.name} · ${fmt$(nextLocked.cost)} — ${nextLocked.oneShot ? 'tape out a design' : 'commission it'}.`, pct: Math.min(1, S.cash / Math.max(1, nextLocked.cost)), sub: sub(nextLocked.cost) };
-    if (S.node !== 'N2') { const id = S.node === 'N5' ? 'node-n3' : 'node-n2'; const M = SG.MISSIONS[id]; const ready = currentD0() < 0.1; return { text: ready ? `Migrate to ${M.effect.node} · ${fmt$(M.cost)} — resets D0 (≈${fmtN(diesPerWafer(S.design.A) * yieldModel(S.design.model || 'nb', S.design.A / 100, 0.5, 3))} good dies/wafer for ~20k wafers).` : `Racks shipping. Push D0 below 0.1 before migrating to ${M.effect.node}; each node restarts yield learning.`, pct: ready ? Math.min(1, S.cash / M.cost) : Math.min(1, (0.5 - currentD0()) / 0.4), sub: ready ? sub(M.cost) : `D0 ${currentD0().toFixed(3)} → 0.100` }; }
+    if (S.node !== 'N2') { const id = S.node === 'N5' ? 'node-n3' : 'node-n2'; const M = SG.MISSIONS[id]; const ready = currentD0() < 0.1; return { text: ready ? `Migrate to ${M.effect.node} · ${fmt$(M.cost)} — resets D0 to ~0.5 for ~20k wafers.` :`Racks shipping. Push D0 below 0.1 before migrating to ${M.effect.node}; each node restarts yield learning.`, pct: ready ? Math.min(1, S.cash / M.cost) : Math.min(1, (0.5 - currentD0()) / 0.4), sub: ready ? sub(M.cost) : `D0 ${currentD0().toFixed(3)} → 0.100` }; }
     return { text: 'Leading edge reached. Push D0 down, finish the Study Hall, collect every achievement.', pct: Object.keys(S.answered).length / 176, sub: Object.keys(S.answered).length + '/176 questions' };
   }
 
@@ -613,7 +613,7 @@
       const sv = n => `<svg class="ic"><use href="#i-${n}"/></svg>`;
       if (f && f.starved) msg = `<span class="warn">${sv('hourglass')}starved of ${f.starved}</span>`;
       else if (f && f.blocked) msg = `<span class="warn">${sv('box')}warehouse full: ${f.blocked}</span>`;
-      else if (f && f.util >= 0.98 && (dump[Object.keys(s.outputs)[0]] || 0) > 0.1) msg = `<span class="warn">${sv('box')}dumping ${pct(dump[Object.keys(s.outputs)[0]])} of output on the spot market</span>`;
+      else if (f && f.util >= 0.98 && (dump[Object.keys(s.outputs)[0]] || 0) > 0.1) msg = `<span class="warn" title="This share of the output bypasses the next station and sells at market price">${sv('box')}dumping ${pct(dump[Object.keys(s.outputs)[0]])} on spot</span>`;
       else if (f && f.util >= 0.98) msg = `<span class="ok">${sv('bolt')}running flat out</span>`;
       else if (f && f.util > 0.02) msg = `<span class="muted">${sv('play')}running at ${pct(util)}</span>`;
       if (em < 1) msg += ` <span class="warn">event ×${em.toFixed(2)}</span>`;
@@ -625,7 +625,7 @@
       const net = netPerDay(s); extra.unshift(`<span class="${net >= 0 ? 'ok' : 'warn'}">net ${net >= 0 ? '+' : ''}${fmt$(net)}/day</span>`);
       html += `<div class="st-msg">${msg}${extra.length ? '<div class="small muted">' + extra.join(' · ') + '</div>' : ''}</div>`;
       c.status.innerHTML = html;
-      const u = c.actions.querySelector('.upg'); if (u) { const uc = upgradeCost(s); const pb = paybackDays(s); u.innerHTML = `⬆ L${st.level + 1} <span class="price">${fmt$(uc)}</span>${isFinite(pb) ? `<span class="price muted">· ${pb < 1 ? '<1' : fmtN(pb)} d payback</span>` : ''}`; u.disabled = S.cash < uc; u.classList.toggle('affordable', S.cash >= uc); u.title = isFinite(pb) ? `One more level adds ${fmt$(capacity(s) / Math.max(1, st.level) * valueAdd(s))}/day; pays back in ${fmtN(pb)} days` : 'This station loses money per cycle right now'; }
+      const u = c.actions.querySelector('.upg'); if (u) { const uc = upgradeCost(s); const pb = paybackDays(s); u.innerHTML = `<svg class="ic"><use href="#i-up"/></svg>L${st.level + 1} <span class="price">${fmt$(uc)}</span>${isFinite(pb) ? `<span class="price muted">· ${pb < 1 ? '<1' : fmtN(pb)} d payback</span>` : ''}`; u.disabled = S.cash < uc; u.classList.toggle('affordable', S.cash >= uc); u.title = isFinite(pb) ? `One more level adds ${fmt$(capacity(s) / Math.max(1, st.level) * valueAdd(s))}/day; pays back in ${fmtN(pb)} days` : 'This station loses money per cycle right now'; }
       const belt = belts[s.id]; if (belt) { const rate = f ? f.util : 0; belt.classList.toggle('paused', !f || f.rate <= 0); belt.style.setProperty('--dur', (rate > 0 ? (2.4 - 1.8 * Math.min(1, rate)) : 3).toFixed(2) + 's'); belt.style.setProperty('--gap', Math.round(30 - 18 * Math.min(1, rate)) + 'px'); const outRes = Object.keys(s.outputs)[0]; const br = belt.querySelector('.belt-rate'); if (br && outRes) br.textContent = f && f.rate > 0 ? fmtN(f.rate * resolveQty(s.outputs[outRes])) + '/d' : '—'; }
     }
   }
