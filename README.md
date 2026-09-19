@@ -51,4 +51,4 @@ docs/GAME.md        design notes and extension points
 
 ## License
 
-MIT. Course content, widgets and figures come from [Sand to GPU](https://github.com/DicksonWu654/sand-to-gpu), also MIT.
+Game code: MIT (see `LICENSE`). Material taken from [Sand to GPU](https://github.com/DicksonWu654/sand-to-gpu) keeps that project's terms: its website code and widgets (`course/`) are MIT, and its lessons, quiz questions and educational illustrations (`generated/`, the briefing text derived from the modules) are CC BY 4.0, attributed to the Sand to GPU project. See the course's [licensing notes](https://github.com/DicksonWu654/sand-to-gpu/blob/main/docs/LICENSING.md).
