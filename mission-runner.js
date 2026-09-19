@@ -170,8 +170,9 @@
       if (kind === 'w') content.append(widgetFrame(id, () => {}));
       else { for (const [key, f] of Object.entries(FIGS)) if (f.module === id) content.append(figureNode(key)); }
     }
-    for (const w of widgets) tabs.append(el('button', { class: 'chip', 'data-k': 'w:' + w, onclick: () => show('w', w) }, '🧭 ' + w.replace(/-/g, ' ')));
-    for (const m of modules) tabs.append(el('button', { class: 'chip', 'data-k': 'f:' + m, onclick: () => show('f', m) }, '🖼 Module ' + String(m).padStart(2, '0') + ' figures'));
+    const svgIc = n => el('span', { html: `<svg class="ic"><use href="#i-${n}"/></svg>` });
+    for (const w of widgets) tabs.append(el('button', { class: 'chip', 'data-k': 'w:' + w, onclick: () => show('w', w) }, svgIc('compass'), w.replace(/-/g, ' ')));
+    for (const m of modules) tabs.append(el('button', { class: 'chip', 'data-k': 'f:' + m, onclick: () => show('f', m) }, svgIc('figure'), 'Module ' + String(m).padStart(2, '0') + ' figures'));
     root.append(el('div', { class: 'tag' }, 'EXPLORE'), el('h2', null, (opts && opts.title) || 'Interactives and figures'), el('p', { class: 'small muted' }, 'The course\'s own widgets and drawings for this part of the chain. ', modules.map((m, i) => [i ? ' · ' : '', modLink(m)])), tabs, content);
     ctx.modal(root, { wide: true });
     if (widgets.length) show('w', widgets[0]); else if (modules.length) show('f', modules[0]);

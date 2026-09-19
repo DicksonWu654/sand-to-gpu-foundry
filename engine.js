@@ -248,7 +248,7 @@
       el('p', { class: 'muted' }, e.station ? `Effect: ${byId[e.station].name} runs at ${Math.round((e.mitigatedBy && S.mitig[e.mitigatedBy] ? 1 - (1 - e.mult) / 2 : e.mult) * 100)}% for ${e.days} days.` : `Effect: prices change for ${e.days} days (${Object.entries(e.priceMult).map(([r, m]) => SG.RES[r].name + ' ×' + m).join(', ')}).`),
       e.mitigatedBy && !S.mitig[e.mitigatedBy] ? el('p', { class: 'hint' }, 'Mitigation available in Risk & Resilience: ' + SG.MITIGATIONS.find(m => m.id === e.mitigatedBy).name + '.') : null,
       el('div', { class: 'mission-nav' }, el('button', { class: 'btn primary', onclick: closeModal }, 'Noted'),
-        (SG.EVENT_WIDGETS && SG.EVENT_WIDGETS[e.id] && SG.missions) ? el('button', { class: 'btn', onclick: () => SG.missions.explore(null, missionCtx, { title: e.title + ': the interactive behind it', widgets: [SG.EVENT_WIDGETS[e.id]], modules: [] }) }, '🧭 Open the interactive') : null)
+        (SG.EVENT_WIDGETS && SG.EVENT_WIDGETS[e.id] && SG.missions) ? el('button', { class: 'btn', onclick: () => SG.missions.explore(null, missionCtx, { title: e.title + ': the interactive behind it', widgets: [SG.EVENT_WIDGETS[e.id]], modules: [] }) }, ic('compass'), 'Open the interactive') : null)
     ));
   }
   // contracts: a customer wants N of your end product by a deadline at +30%; a shortfall costs 20% of the missing value
@@ -627,7 +627,7 @@
       if (s.id === 'sort' && S.design) extra.push(`${diesPerWafer(S.design.A)} dies × ${pct(yieldModel(S.design.model || 'nb', S.design.A / 100, currentD0(), 3))} = ${fmtN(goodDiesPerWafer())} good/wafer`);
       if (s.id === 'hbm') { const hc = hbmConfig(); extra.push(`${hc.height}-high · stack yield ${pct(hbmStackYield(hc))}`); }
       if (s.id === 'systems') extra.push(`field failures ${(fieldFail() * 100).toFixed(2)}%`);
-      if (s.id === 'fab') extra.push(`opex ${fmt$(stationOpex(s))}/wafer · ${S.node}` + (baysReady() ? '' : ` · outsourcing ${baysMissing().length} bay${baysMissing().length > 1 ? 's' : ''}`));
+      if (s.id === 'fab') extra.push(`<span style="white-space:nowrap">opex ${fmt$(stationOpex(s))}/wafer · ${S.node}</span>` + (baysReady() ? '' : ` · <span style="white-space:nowrap">outsourcing ${baysMissing().length} bay${baysMissing().length > 1 ? 's' : ''}</span>`));
       const net = netPerDay(s); extra.unshift(`<span class="${net >= 0 ? 'ok' : 'warn'}">net ${net >= 0 ? '+' : ''}${fmt$(net)}/day</span>`);
       html += `<div class="st-msg">${msg}${extra.length ? '<div class="small muted">' + extra.join(' · ') + '</div>' : ''}</div>`;
       c.status.innerHTML = html;

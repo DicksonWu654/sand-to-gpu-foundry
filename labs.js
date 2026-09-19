@@ -177,11 +177,11 @@ SG.LABS.litho = {
   open(host, ctx) {
     const { el, S, fmt$, pct, log, toast, save } = ctx;
     const TOOLS = [
-      { id: 'krf', name: 'KrF (248 nm, NA 0.8)', lam: 248, na: 0.8, k1: 0.30, cost: 60 },
-      { id: 'arf', name: 'ArF dry (193 nm, NA 0.93)', lam: 193, na: 0.93, k1: 0.30, cost: 90 },
-      { id: 'arfi', name: 'ArF immersion (193 nm, NA 1.35)', lam: 193, na: 1.35, k1: 0.28, cost: 140 },
-      { id: 'euv', name: 'EUV (13.5 nm, NA 0.33)', lam: 13.5, na: 0.33, k1: 0.32, cost: 400 },
-      { id: 'hna', name: 'High-NA EUV (13.5 nm, NA 0.55)', lam: 13.5, na: 0.55, k1: 0.32, cost: 700 }
+      { id: 'krf', name: 'KrF 248 nm · NA 0.8', lam: 248, na: 0.8, k1: 0.30, cost: 60 },
+      { id: 'arf', name: 'ArF dry 193 nm · NA 0.93', lam: 193, na: 0.93, k1: 0.30, cost: 90 },
+      { id: 'arfi', name: 'ArFi 193 nm · NA 1.35', lam: 193, na: 1.35, k1: 0.28, cost: 140 },
+      { id: 'euv', name: 'EUV 13.5 nm · NA 0.33', lam: 13.5, na: 0.33, k1: 0.32, cost: 400 },
+      { id: 'hna', name: 'High-NA EUV · NA 0.55', lam: 13.5, na: 0.55, k1: 0.32, cost: 700 }
     ];
     const PAT = [
       { id: 'se', name: 'Single exposure', div: 1, passes: 1, extra: 0 },
