@@ -13,7 +13,9 @@ You never have to read a chapter first. Every station is a **commissioning missi
 3. **Commission it.** The course's real interactive widgets run inside the game with live targets: "ship at least 1,900 wafers from this ingot", "make a 12-high HBM stack fit under 720 µm", "print a 26 nm pitch in a single exposure".
 4. **Certify.** A couple of questions from the course's quizzes, now that you have been taught.
 
-Then the idle-game loop takes over: find the bottleneck, upgrade, click stations for manual shifts, catch rush orders, earn achievements, migrate the fab to a new node and watch the yield-learning curve restart. Every quiz question you answer anywhere adds 0.5% to all revenue forever.
+Then the factory loop takes over: find the bottleneck (every card shows net $/day, what it is starved of, and what it is dumping on the spot market), upgrade where the payback is shortest, click a station to run a manual shift, take contracts with deadlines, earn achievements, migrate the fab to a new node and watch the yield-learning curve restart. Every quiz question you answer right on the first try, anywhere, adds 0.5% to all revenue forever and pays a research grant scaled to your next goal.
+
+The game's text, targets and formulas were fact-checked against the course module by module; the economy was tuned with a simulation so that the chain is always worth extending (no station makes the line lose money, and the fab has to be upgraded to feed packaging).
 
 ## Run it
 
