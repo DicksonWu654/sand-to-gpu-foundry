@@ -396,3 +396,5 @@ table.litho select { max-width: 240px; }
 .btn:focus-visible, .chip:focus-visible, .opt:focus-visible, .st-art:focus-visible, .side-tab:focus-visible, .mm:focus-visible, .study-cell:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .st-art .glyph.duo { transform: scale(1.12); height: 124px; margin-top: 12px; }
 .st-art .glyph.duo g:last-child .sf-object { opacity: .85; }
+@media (prefers-reduced-motion: reduce) { .belt-track::after, .station.running .st-art::after, .obj-tag.ready, .objective.ready::after, .rush, .scene-host.puzzle .sf-callout.open circle, .floor svg.route path { animation: none !important; } .floater { animation-duration: .01s; } }
+@media (max-width: 700px) { .rush { left: 12px !important; right: 12px; top: auto !important; bottom: 84px; align-items: center; } }

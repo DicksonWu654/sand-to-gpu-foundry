@@ -301,8 +301,11 @@
     const box = el('div', { class: 'modal-box ' + ((opts && opts.wide) ? 'wide' : '') });
     if (!(opts && opts.noClose)) box.append(el('button', { class: 'modal-x', onclick: closeModal, 'aria-label': 'Close' }, '×'));
     box.append(content); root.append(box); root.classList.add('open'); document.body.classList.add('modal-open');
+    if (!lastFocus) lastFocus = document.activeElement;
+    setTimeout(() => { const f = box.querySelector('.btn.primary, button:not(.modal-x), [href], input, select'); if (f && root.classList.contains('open')) f.focus({ preventScroll: true }); }, 40);
   }
-  function closeModal() { const r = modalRoot(); r.classList.remove('open'); r.innerHTML = ''; document.body.classList.remove('modal-open'); if (SG.onModalClose) { const f = SG.onModalClose; SG.onModalClose = null; f(); } }
+  let lastFocus = null;
+  function closeModal() { const r = modalRoot(); r.classList.remove('open'); r.innerHTML = ''; document.body.classList.remove('modal-open'); if (lastFocus && lastFocus.focus && document.contains(lastFocus)) { try { lastFocus.focus({ preventScroll: true }); } catch (e) {} } lastFocus = null; if (SG.onModalClose) { const f = SG.onModalClose; SG.onModalClose = null; f(); } }
   function toast(title, text) {
     const gold = /^[🏆💰⬆]/.test(title);
     const t = el('div', { class: 'toast' + (gold ? ' gold' : '') }, el('b', null, title), el('div', null, text));
