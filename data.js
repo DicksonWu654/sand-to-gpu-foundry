@@ -300,13 +300,13 @@ SG.STATION_ART = {
   siemens: { scene: 'siemens', box: '30 20 600 300' },
   cz: { scene: 'cz-puller', box: '150 10 400 360' },
   wafering: { scene: 'lapping-section', box: '60 30 580 270' },
-  design: { glyph: 'design' },
+  design: { glyphs: ['design', 'mask'] },
   fab: { scene: 'die-section', box: '70 40 560 310' },
-  sort: { glyph: 'test' },
+  sort: { glyphs: ['test', 'wafer'] },
   hbm: { scene: 'hbm-section', box: '130 40 440 330' },
   cowos: { scene: 'package-section', box: '60 60 580 280' },
-  test: { glyph: 'heat' },
-  systems: { glyph: 'rack' }
+  test: { glyphs: ['heat', 'chip'] },
+  systems: { glyphs: ['rack', 'wires'] }
 };
 
 // Links into the course (the reader is a separate repo).

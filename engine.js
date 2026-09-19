@@ -550,9 +550,10 @@
       const topRow = el('div', { class: 'st-top' }, el('div', { class: 'st-title' }, el('div', { class: 'st-name' }, s.name), el('div', { class: 'st-stage' }, 'Stage ' + s.stage + ' · ' + modLabel)));
       const lvlPill = on && !s.oneShot ? el('span', { class: 'lvl' }, 'L' + st.level + (tier(s) ? ' · T' + tier(s) : '')) : (on ? el('span', { class: 'lvl' }, 'built') : el('span', { class: 'lvl locked' }, 'locked'));
       // illustration: the course's apparatus scene or glyph, clickable for a manual shift
-      const icon = el('button', { class: 'st-art', title: on ? 'Run a manual shift' : 'Locked', onclick: () => manualShift(s, icon) });
+      const icon = el('button', { class: 'st-art', title: on ? 'Run a manual shift' : 'Locked', 'aria-label': on ? 'Run a manual shift at the ' + s.name : s.name + ' (locked)', onclick: () => manualShift(s, icon) });
       const art = SG.STATION_ART[s.id];
       if (art && art.scene && window.SG_SCENES && window.SG_SCENES[art.scene]) { const sc = window.SG_SCENES[art.scene]; icon.innerHTML = `<figure class="section-figure sf-scene"><div class="sf-drawing"><svg viewBox="${art.box || ('0 0 700 ' + sc.height)}" preserveAspectRatio="xMidYMid meet"><defs><marker id="${sc.marker}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 6 3 0 6" class="sf-arrowhead"/></marker></defs>${sc.art}</svg></div></figure>`; }
+      else if (art && art.glyphs && window.SG_GLYPHS && art.glyphs.every(g => window.SG_GLYPHS[g])) { const [a, b] = art.glyphs; icon.innerHTML = `<figure class="section-figure"><div class="sf-drawing"><svg viewBox="-118 -54 236 108" class="glyph duo"><g transform="translate(-58 0)">${window.SG_GLYPHS[a]}</g><g transform="translate(60 4) scale(.82)">${window.SG_GLYPHS[b]}</g></svg></div></figure>`; }
       else if (art && art.glyph && window.SG_GLYPHS && window.SG_GLYPHS[art.glyph]) { icon.innerHTML = `<figure class="section-figure"><div class="sf-drawing"><svg viewBox="-54 -49 108 98" class="glyph">${window.SG_GLYPHS[art.glyph]}</svg></div></figure>`; }
       else icon.textContent = s.icon;
       icon.append(lvlPill);
@@ -705,6 +706,7 @@
     $('#btn-help').addEventListener('click', showHelp);
     $('#btn-reset').addEventListener('click', () => { if (confirm('Start over? This wipes your save.')) { S = freshState(); localStorage.removeItem(SAVE_KEY); buildChain(); renderLog(); } });
     $('#speed').addEventListener('change', e => { S.speed = Number(e.target.value); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modalRoot().classList.contains('open')) { e.preventDefault(); closeModal(); } });
     $('#speed').value = String(S.speed == null ? 1 : S.speed);
     document.querySelectorAll('.side-tab').forEach(t => t.addEventListener('click', () => { document.querySelectorAll('.side-tab').forEach(x => x.classList.toggle('sel', x === t)); document.querySelectorAll('.side-pane').forEach(p => p.classList.toggle('show', p.id === t.dataset.pane)); }));
     buildChain(); renderLog(); renderHeader();
