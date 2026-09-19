@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sand to GPU: Foundry</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="course/section-figures.css">
+<link rel="stylesheet" href="game.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><a href="https://github.com/DicksonWu654/sand-to-gpu" target="_blank" title="The course this game is built from">◀ Sand to GPU</a><b>Foundry</b></div>
+  <div class="tiles">
+    <div class="tile"><span class="tile-l">Day</span><span class="tile-v" id="h-day">Day 0</span></div>
+    <div class="tile cash"><span class="tile-l">Cash</span><span class="tile-v" id="h-cash">$0</span><span class="tile-s" id="h-income">+$0/day</span></div>
+    <div class="tile"><span class="tile-l">D0 (defects/cm²)</span><span class="tile-v" id="h-d0">0.500</span><span class="tile-s" id="h-node">N5</span></div>
+    <div class="tile"><span class="tile-l">Knowledge</span><span class="tile-v" id="h-know">0/176</span><span class="tile-s">questions answered</span></div>
+    <div class="tile"><span class="tile-l">Revenue multiplier</span><span class="tile-v" id="h-mult">×1.00</span><span class="tile-s" id="h-events"></span></div>
+  </div>
+  <div class="tools">
+    <label class="speed">Speed <select id="speed"><option value="0">⏸</option><option value="1" selected>1×</option><option value="3">3×</option><option value="10">10×</option></select></label>
+    <button id="btn-study" class="btn">🎓 Study Hall</button>
+    <button id="btn-risk" class="btn">⚠ Risk</button>
+    <button id="btn-help" class="btn ghost">?</button>
+    <button id="btn-reset" class="btn ghost">Reset</button>
+  </div>
+</header>
+
+<div class="objective">
+  <span class="obj-tag">NEXT</span>
+  <div class="obj-body"><div id="obj-text" class="obj-text"></div><div class="obj-bar"><div id="obj-fill" class="obj-fill"></div></div></div>
+  <span id="obj-sub" class="obj-sub"></span>
+</div>
+
+<main>
+  <section class="chain-wrap"><div id="chain" class="chain"></div></section>
+  <section class="panels">
+    <div class="panel">
+      <h3>Warehouse &amp; markets</h3>
+      <p class="small muted">Auto keeps a 30-day warehouse for the next station and sells the surplus on the spot market. The last station's output is always sold.</p>
+      <div id="resources"></div>
+    </div>
+    <div class="panel side">
+      <div class="side-tabs"><button class="side-tab sel" data-pane="log">Log</button><button class="side-tab" data-pane="achievements">Achievements</button></div>
+      <div id="log" class="side-pane show"></div>
+      <div id="achievements" class="side-pane"></div>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal"></div>
+<div id="toasts" class="toasts"></div>
+
+<script src="generated/quiz-data.js"></script>
+<script src="generated/figures.js"></script>
+<script src="data.js"></script>
+<script src="missions.js"></script>
+<script src="labs.js"></script>
+<script src="mission-runner.js"></script>
+<script src="engine.js"></script>
+</body>
+</html>

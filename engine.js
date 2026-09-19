@@ -1,0 +1,621 @@
+// Sand to GPU: Foundry — game engine (state, simulation, missions, bonuses, UI).
+(function () {
+  const SG = window.SG;
+  const QUIZ = window.SAND_QUIZ || {};
+  const SAVE_KEY = 'sand-to-gpu-foundry-v1';
+  const ORDER = SG.STATIONS.map(s => s.id);
+  const byId = Object.fromEntries(SG.STATIONS.map(s => [s.id, s]));
+  const $ = sel => document.querySelector(sel);
+  const el = (tag, attrs, ...kids) => {
+    const n = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') n.className = v;
+      else if (k === 'html') n.innerHTML = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else if (v !== null && v !== undefined) n.setAttribute(k, v);
+    }
+    for (const k of kids.flat(Infinity)) if (k !== null && k !== undefined) n.append(k.nodeType ? k : document.createTextNode(String(k)));
+    return n;
+  };
+  const REQUIRED_BAYS = ['bay-oxdep', 'bay-litho', 'bay-etch', 'bay-implant', 'bay-feol', 'bay-beol'];
+  const OPTIONAL_BAYS = ['bay-clean', 'bay-metro'];
+
+  // ---------- state ----------
+  function freshState() {
+    const st = {};
+    for (const s of SG.STATIONS) st[s.id] = { on: !!s.startUnlocked, level: 1 };
+    const res = {}; for (const r of Object.keys(SG.RES)) res[r] = 0;
+    return {
+      v: 1, day: 0, cash: 300000, res, st, design: null, wafersRun: 0,
+      labs: {}, puzzles: {}, mitig: {}, events: [], log: [], milestones: {}, answered: {}, made: {},
+      bays: {}, node: 'N5', nodeFx: { waferPrice: 16000, opex: 8000, density: 1 }, bonus: { thr: {}, d0: 0 }, missions: {},
+      ach: {}, achMult: 0, lastSeen: Date.now(), nextRush: null,
+      sell: {}, stats: { revenue: 0, sold: {}, capex: 0, clicks: 0, rush: 0 }, income: 0, won: false, speed: 1
+    };
+  }
+  let S = load() || freshState();
+  function save() { S.lastSeen = Date.now(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+  function load() {
+    try {
+      const j = localStorage.getItem(SAVE_KEY); if (!j) return null; const s = JSON.parse(j); if (s.v !== 1) return null;
+      const d = freshState();
+      for (const k of Object.keys(d)) if (s[k] == null) s[k] = d[k];
+      for (const k of Object.keys(d.stats)) if (s.stats[k] == null) s.stats[k] = d.stats[k];
+      return s;
+    } catch (e) { return null; }
+  }
+  function baysReady() { return REQUIRED_BAYS.every(b => S.bays[b]); }
+  function baysMissing() { return REQUIRED_BAYS.filter(b => !S.bays[b]); }
+
+  // ---------- derived quantities (the formulas from the course) ----------
+  const WAFER_D = 300;
+  function diesPerWafer(A) { return Math.max(0, Math.floor(Math.PI * Math.pow(WAFER_D / 2, 2) / A - Math.PI * WAFER_D / Math.sqrt(2 * A))); }
+  function yieldModel(model, Acm2, D0, alpha) {
+    const AD = Acm2 * D0;
+    if (model === 'poisson') return Math.exp(-AD);
+    if (model === 'murphy') return AD === 0 ? 1 : Math.pow((1 - Math.exp(-AD)) / AD, 2);
+    return Math.pow(1 + AD / (alpha || 3), -(alpha || 3));
+  }
+  function currentD0() {
+    const learn = 0.05 + 0.45 * Math.exp(-S.wafersRun / 20000);
+    const bonus = ((S.labs.oxide && S.labs.oxide.d0bonus) || 0) + ((S.bonus && S.bonus.d0) || 0);
+    return Math.max(0.03, learn - bonus);
+  }
+  function hbmConfig() { return S.labs.hbm || { height: 8, escape: 0.04, bond: 0.97, bondName: 'TC-NCF' }; }
+  function hbmStackYield(c) { return Math.pow(1 - c.escape, c.height + 1) * Math.pow(c.bond, c.height); }
+  function hbmGB(c) { return 3 * c.height; }
+  function gpuPrice(d) { d = d || S.design; if (!d) return 0; return 3000 + 14 * d.A * d.n * ((S.nodeFx && S.nodeFx.density) || 1) + 25 * d.h * hbmGB(hbmConfig()); }
+  function knowledgeMult() { return 1 + 0.005 * Object.keys(S.answered).length; }
+  function revMult() { return (1 + (S.achMult || 0)) * knowledgeMult(); }
+  function priceOf(r) {
+    let p = SG.RES[r].price;
+    if (r === 'fwafer' && S.nodeFx) p = S.nodeFx.waferPrice;
+    if (r === 'die' && S.design) p = 1.5 * S.design.A;
+    if (r === 'hbm') p = 18 * hbmGB(hbmConfig());
+    if (r === 'gpu' && S.design) p = gpuPrice();
+    if (r === 'pkg' && S.design) p = 0.8 * gpuPrice();
+    if (r === 'rack' && S.design) p = 72 * gpuPrice() * 1.3 + 500000;
+    for (const ev of S.events) { const e = SG.EVENTS.find(x => x.id === ev.id); if (e && e.priceMult && e.priceMult[r]) p *= e.priceMult[r]; }
+    return p;
+  }
+  function wafersPerIngot() { return (S.labs.cz && S.labs.cz.wpi) || 1300; }
+  function goodDiesPerWafer() { if (!S.design) return 0; return diesPerWafer(S.design.A) * yieldModel(S.design.model || 'nb', S.design.A / 100, currentD0(), 3); }
+  function resolveQty(v) {
+    if (typeof v === 'number') return v;
+    if (v === 'WPI') return wafersPerIngot();
+    if (v === 'DPW') return goodDiesPerWafer();
+    if (v === 'HBMPW') return 30 * hbmStackYield(hbmConfig());
+    if (v === 'NDIE') return S.design ? S.design.n : 2;
+    if (v === 'NHBM') return S.design ? S.design.h : 8;
+    return 0;
+  }
+  function fieldFail() { return (S.labs.test && S.labs.test.fieldFail != null) ? S.labs.test.fieldFail : 0.02; }
+  function stationOpex(s) {
+    let o = s.opex;
+    if (s.id === 'fab' && S.nodeFx) o = S.nodeFx.opex;
+    if (s.id === 'fab' && S.labs.litho) o *= S.labs.litho.opexMult;
+    if (s.id === 'test' && S.labs.test) o = S.labs.test.costPerUnit;
+    if (s.id === 'systems') o += fieldFail() * 72 * 100000;
+    return o;
+  }
+  function eventMult(sid) {
+    let m = 1;
+    for (const ev of S.events) {
+      const e = SG.EVENTS.find(x => x.id === ev.id);
+      if (!e || e.station !== sid) continue;
+      let mult = e.mult; if (e.mitigatedBy && S.mitig[e.mitigatedBy]) mult = 1 - (1 - mult) / 2;
+      m *= mult;
+    }
+    return m;
+  }
+  function puzzleBonus(sid) { let b = 1; for (const p of SG.PUZZLES) if (p.station === sid && S.puzzles[p.id]) b += 0.1; return b; }
+  function tier(s) { return Math.floor(S.st[s.id].level / 5); }
+  function capacity(s) {
+    let c = s.rate * S.st[s.id].level * (1 + 0.25 * tier(s)) * eventMult(s.id) * puzzleBonus(s.id) * (1 + ((S.bonus && S.bonus.thr && S.bonus.thr[s.id]) || 0));
+    if (s.id === 'fab') c *= 1 + 0.1 * OPTIONAL_BAYS.filter(b => S.bays[b]).length;
+    return c;
+  }
+  function upgradeCost(s) { return Math.round((s.cost || 40000) * 0.5 * Math.pow(1.45, S.st[s.id].level - 1)); }
+  function producerOf(r) { return SG.STATIONS.find(s => s.outputs[r] !== undefined); }
+  function consumersOf(r) { return SG.STATIONS.filter(s => s.inputs[r] !== undefined); }
+  function warehouseCap(r) {
+    const p = producerOf(r); if (!p) return Infinity;
+    return capacity(p) * resolveQty(p.outputs[r]) * 30 * (S.mitig.stockpile ? 3 : 1);
+  }
+  function blocked(s) { return (s.needsDesign && !S.design) ? 'a mask set (open the Design Studio)' : (s.id === 'fab' && !baysReady()) ? baysMissing().length + ' uncommissioned bay' + (baysMissing().length > 1 ? 's' : '') + ' (open the Fab floor)' : null; }
+
+  // ---------- simulation ----------
+  const flow = {}; const soldTick = {};
+  let incomeWindow = []; let simulating = false;
+  // Run up to `cap` cycles of station s, limited by inputs and output warehouse. Returns cycles run.
+  function produce(s, cap, respectWarehouse) {
+    let cycles = cap; let starved = null; let blockedBy = null;
+    for (const [r, q] of Object.entries(s.inputs)) {
+      const per = resolveQty(q); if (per <= 0) continue;
+      const possible = S.res[r] / per; if (possible < cycles) { cycles = possible; starved = SG.RES[r].name; }
+    }
+    if (respectWarehouse) for (const [r, q] of Object.entries(s.outputs)) {
+      if (!consumersOf(r).some(c => S.st[c.id].on)) continue;
+      const room = Math.max(0, warehouseCap(r) * 1.2 - S.res[r]); const per = resolveQty(q); if (per <= 0) continue;
+      if (room / per < cycles) { cycles = room / per; blockedBy = SG.RES[r].name; }
+    }
+    cycles = Math.max(0, cycles);
+    if (cycles > 0) {
+      for (const [r, q] of Object.entries(s.inputs)) S.res[r] -= resolveQty(q) * cycles;
+      for (const [r, q] of Object.entries(s.outputs)) { const made = resolveQty(q) * cycles; S.res[r] += made; S.made[r] = (S.made[r] || 0) + made; if (S.made[r] >= 1) checkMilestone(r); }
+      S.cash -= stationOpex(s) * cycles;
+      if (s.id === 'fab') S.wafersRun += cycles;
+    }
+    return { cycles, starved, blockedBy };
+  }
+  function tick(dt) {
+    const cashBefore = S.cash;
+    S.day += dt;
+    for (const id of ORDER) {
+      const s = byId[id]; const st = S.st[id];
+      if (!st.on || s.rate === 0) { flow[id] = null; continue; }
+      const b = blocked(s); if (b) { flow[id] = { rate: 0, util: 0, starved: b }; continue; }
+      const cap = capacity(s) * dt;
+      const r = produce(s, cap, true);
+      flow[id] = { rate: r.cycles / dt, util: cap > 0 ? r.cycles / cap : 0, starved: r.cycles < cap * 0.98 ? r.starved : null, blocked: r.cycles < cap * 0.98 ? r.blockedBy : null };
+    }
+    for (const r of Object.keys(SG.RES)) {
+      const policy = S.sell[r] || 'auto';
+      const hasConsumer = consumersOf(r).some(c => S.st[c.id].on);
+      let qty = 0;
+      if (policy === 'all' || (policy === 'auto' && !hasConsumer)) qty = S.res[r];
+      else if (policy === 'auto') { const cap = warehouseCap(r); if (S.res[r] > cap) qty = S.res[r] - cap; }
+      if (qty > 1e-9) { S.res[r] -= qty; const rev = qty * priceOf(r) * revMult(); S.cash += rev; S.stats.revenue += rev; S.stats.sold[r] = (S.stats.sold[r] || 0) + qty; soldTick[r] = (soldTick[r] || 0) + rev; }
+    }
+    for (const ev of S.events.slice()) if (S.day >= ev.endsDay) { S.events.splice(S.events.indexOf(ev), 1); log('Event over: ' + SG.EVENTS.find(e => e.id === ev.id).title, 'muted'); }
+    if (!simulating && S.st.fab.on && (!S.nextEvent || S.day >= S.nextEvent)) { if (S.nextEvent) fireEvent(); S.nextEvent = S.day + 120 + Math.random() * 120; }
+    if (!simulating && S.st.furnace.on && (!S.nextRush || S.day >= S.nextRush)) { if (S.nextRush) spawnRush(); S.nextRush = S.day + 60 + Math.random() * 90; }
+    incomeWindow.push({ d: dt, c: S.cash - cashBefore });
+    while (incomeWindow.length > 100) incomeWindow.shift();
+    const totD = incomeWindow.reduce((a, x) => a + x.d, 0);
+    S.income = totD > 0 ? incomeWindow.reduce((a, x) => a + x.c, 0) / totD : 0;
+  }
+  function checkMilestone(r) {
+    const m = SG.MILESTONES.find(m => m.res === r);
+    if (!m || S.milestones[m.id]) return;
+    S.milestones[m.id] = true;
+    log('Milestone: ' + m.title + ' — ' + m.text, 'milestone');
+    if (!simulating) toast('🏁 ' + m.title, m.text);
+    if (m.id === 'm_rack' && !S.won) { S.won = true; if (!simulating) setTimeout(showWin, 800); }
+  }
+  function checkAchievements() {
+    const ctx = { d0: currentD0 };
+    for (const a of SG.ACHIEVEMENTS) {
+      if (S.ach[a.id]) continue;
+      let ok = false; try { ok = a.check(S, ctx); } catch (e) {}
+      if (!ok) continue;
+      S.ach[a.id] = Math.floor(S.day);
+      if (a.reward.cash) S.cash += a.reward.cash;
+      if (a.reward.mult) S.achMult = (S.achMult || 0) + a.reward.mult;
+      log(`Achievement: ${a.title}. ${a.reward.mult ? '+' + Math.round(a.reward.mult * 100) + '% revenue forever.' : '+' + fmt$(a.reward.cash) + '.'}`, 'ach');
+      if (!simulating) toast('🏆 ' + a.title, a.text + (a.reward.mult ? ` +${Math.round(a.reward.mult * 100)}% revenue.` : ` +${fmt$(a.reward.cash)}.`));
+      renderSide();
+    }
+  }
+  function fireEvent() {
+    const candidates = SG.EVENTS.filter(e => !S.events.some(x => x.id === e.id) && (!e.station || S.st[e.station].on));
+    if (!candidates.length) return;
+    const e = candidates[Math.floor(Math.random() * candidates.length)];
+    S.events.push({ id: e.id, endsDay: S.day + e.days });
+    if (e.scrapFrac && e.station === 'fab') {
+      const frac = S.mitig.isolation ? 0.05 : e.scrapFrac;
+      const wip = capacity(byId.fab) * 90; const scrapped = wip * frac; const cost = scrapped * (SG.RES.wafer.price + stationOpex(byId.fab) * 0.5);
+      S.cash -= cost;
+      log(`Earthquake scrapped ~${fmtN(scrapped)} wafers in process (Little's law WIP × ${Math.round(frac * 100)}%), costing ${fmt$(cost)}.`, 'event');
+    }
+    log('Event: ' + e.title, 'event');
+    modal(el('div', { class: 'news' },
+      el('div', { class: 'news-tag' }, 'INDUSTRY NEWS · day ' + Math.floor(S.day)),
+      el('h2', null, e.title), el('p', null, e.text),
+      el('p', { class: 'muted' }, e.station ? `Effect: ${byId[e.station].name} runs at ${Math.round((e.mitigatedBy && S.mitig[e.mitigatedBy] ? 1 - (1 - e.mult) / 2 : e.mult) * 100)}% for ${e.days} days.` : `Effect: prices change for ${e.days} days (${Object.entries(e.priceMult).map(([r, m]) => SG.RES[r].name + ' ×' + m).join(', ')}).`),
+      e.mitigatedBy && !S.mitig[e.mitigatedBy] ? el('p', { class: 'hint' }, 'Mitigation available in Risk & Resilience: ' + SG.MITIGATIONS.find(m => m.id === e.mitigatedBy).name + '.') : null,
+      el('div', { class: 'mission-nav' }, el('button', { class: 'btn primary', onclick: closeModal }, 'Noted'),
+        (SG.EVENT_WIDGETS && SG.EVENT_WIDGETS[e.id] && SG.missions) ? el('button', { class: 'btn', onclick: () => SG.missions.explore(null, missionCtx, { title: e.title + ': the interactive behind it', widgets: [SG.EVENT_WIDGETS[e.id]], modules: [] }) }, '🧭 Open the interactive') : null)
+    ));
+  }
+  // rush orders: the golden cookie
+  function spawnRush() {
+    if ($('.rush')) return;
+    const r = SG.RUSH[Math.floor(Math.random() * SG.RUSH.length)];
+    const value = Math.max(25000, S.income * r.days);
+    const btn = el('button', { class: 'rush', style: `left:${10 + Math.random() * 70}%; top:${20 + Math.random() * 50}%` }, el('b', null, '💰 Rush order'), el('span', null, r.title + ' · ' + fmt$(value)));
+    const timer = setTimeout(() => btn.remove(), 14000);
+    btn.addEventListener('click', () => { clearTimeout(timer); btn.remove(); S.cash += value; S.stats.rush = (S.stats.rush || 0) + 1; log(`Rush order collected: ${r.title} (+${fmt$(value)})`, 'ach'); toast('💰 ' + r.title + ' +' + fmt$(value), r.text); floatText(btn, '+' + fmt$(value), 'gold'); });
+    document.body.append(btn);
+  }
+  // manual shift: click a station to run cycles now
+  function manualShift(s, iconEl) {
+    if (!S.st[s.id].on || s.rate === 0) return;
+    if (blocked(s)) { floatText(iconEl, 'blocked', 'bad'); return; }
+    const r = produce(s, capacity(s) * 0.1, true);
+    S.stats.clicks = (S.stats.clicks || 0) + 1;
+    if (r.cycles > 0.01) { const out = Object.entries(s.outputs)[0]; floatText(iconEl, '+' + fmtN(resolveQty(out[1]) * r.cycles) + ' ' + SG.RES[out[0]].unit, 'ok'); iconEl.classList.remove('pulse'); void iconEl.offsetWidth; iconEl.classList.add('pulse'); }
+    else floatText(iconEl, r.starved ? 'no ' + r.starved : 'warehouse full', 'bad');
+  }
+
+  // ---------- formatting ----------
+  function fmt$(x) { const a = Math.abs(x); const s = x < 0 ? '−$' : '$'; if (a >= 1e9) return s + (a / 1e9).toFixed(2) + 'B'; if (a >= 1e6) return s + (a / 1e6).toFixed(2) + 'M'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'k'; return s + a.toFixed(0); }
+  function fmtN(x) { const a = Math.abs(x); if (a >= 1e9) return (x / 1e9).toFixed(2) + 'B'; if (a >= 1e6) return (x / 1e6).toFixed(2) + 'M'; if (a >= 1e4) return (x / 1e3).toFixed(1) + 'k'; if (a >= 100) return x.toFixed(0); if (a >= 10) return x.toFixed(1); return x.toFixed(2); }
+  function pct(x) { return (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%'; }
+  function log(text, cls) { S.log.unshift({ day: Math.floor(S.day), text, cls }); if (S.log.length > 80) S.log.pop(); renderLog(); }
+
+  // ---------- modal, toast, floaters ----------
+  const modalRoot = () => $('#modal');
+  function modal(content, opts) {
+    const root = modalRoot(); root.innerHTML = '';
+    const box = el('div', { class: 'modal-box ' + ((opts && opts.wide) ? 'wide' : '') });
+    if (!(opts && opts.noClose)) box.append(el('button', { class: 'modal-x', onclick: closeModal, 'aria-label': 'Close' }, '×'));
+    box.append(content); root.append(box); root.classList.add('open');
+  }
+  function closeModal() { const r = modalRoot(); r.classList.remove('open'); r.innerHTML = ''; if (SG.onModalClose) { const f = SG.onModalClose; SG.onModalClose = null; f(); } }
+  function toast(title, text) {
+    const t = el('div', { class: 'toast' }, el('b', null, title), el('div', null, text));
+    const host = $('#toasts'); while (host.children.length >= 4) host.firstChild.remove();
+    host.append(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 9000);
+  }
+  function floatText(anchor, text, cls) {
+    const r = anchor.getBoundingClientRect();
+    const f = el('div', { class: 'floater ' + (cls || ''), style: `left:${r.left + r.width / 2 + (Math.random() - 0.5) * 30}px; top:${r.top}px` }, text);
+    document.body.append(f); setTimeout(() => f.remove(), 1300);
+  }
+
+  // ---------- quiz gate ----------
+  function pickQuestions(modules, n) {
+    const pool = [];
+    for (const m of modules) { const q = QUIZ[m]; if (!q) continue; q.questions.forEach((qq, i) => pool.push({ m, i, q: qq })); }
+    const fresh = pool.filter(p => !S.answered[p.m + ':' + p.i]);
+    const src = fresh.length >= n ? fresh : pool;
+    for (let i = src.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [src[i], src[j]] = [src[j], src[i]]; }
+    return src.slice(0, n);
+  }
+  function quizGate(title, modules, n, onPass, reward) {
+    let correct = 0; let queue = pickQuestions(modules, n * 3);
+    const modName = m => (QUIZ[m] ? QUIZ[m].file.replace(/^\d+-/, '').replace(/-/g, ' ') : 'module ' + m);
+    function ask() {
+      if (correct >= n) { closeModal(); onPass(); return; }
+      if (!queue.length) queue = pickQuestions(modules, n * 3);
+      const item = queue.shift(); const q = item.q;
+      const body = el('div', { class: 'quiz' },
+        el('div', { class: 'quiz-head' }, el('span', { class: 'tag' }, 'CERTIFY · ' + title), el('span', { class: 'muted' }, `${correct}/${n} correct · Module ${String(item.m).padStart(2, '0')}: ${modName(item.m)}`)),
+        el('p', { class: 'quiz-q' }, q.q),
+        el('div', { class: 'quiz-opts' }, q.options.map((o, idx) => el('button', { class: 'opt', onclick: () => answer(idx) }, o))),
+        el('p', { class: 'muted small' }, 'Read the chapter: ', el('a', { href: SG.courseLink(item.m), target: '_blank' }, 'open Module ' + String(item.m).padStart(2, '0')))
+      );
+      function answer(idx) {
+        const ok = idx === q.answer; const key = item.m + ':' + item.i; const first = !S.answered[key];
+        if (ok) { correct++; S.answered[key] = true; if (first && reward) { const g = reward(); S.cash += g; toast('Research grant +' + fmt$(g), `First-time correct answer. Knowledge multiplier is now ×${knowledgeMult().toFixed(3)}.`); } }
+        body.querySelector('.quiz-head .muted').textContent = `${correct}/${n} correct · Module ${String(item.m).padStart(2, '0')}: ${modName(item.m)}`;
+        body.querySelectorAll('.opt').forEach((b, i) => { b.disabled = true; if (i === q.answer) b.classList.add('right'); else if (i === idx) b.classList.add('wrong'); });
+        body.append(el('div', { class: 'explain ' + (ok ? 'ok' : 'bad') }, el('b', null, ok ? 'Correct. ' : 'Not quite. '), q.explanation),
+          el('button', { class: 'btn primary', onclick: ask }, correct >= n ? 'Finish' : (ok ? 'Next question' : 'Try another question')));
+      }
+      modal(body, { wide: true });
+    }
+    ask();
+  }
+  function grantAmount() { return Math.max(50000, Math.min(20e6, S.income * 3)); }
+
+  // ---------- missions and actions ----------
+  const missionCtx = { modal, closeModal, quizGate, grantAmount };
+  function runMission(id, done) {
+    if (!SG.missions || !SG.MISSIONS[id]) { const s = byId[id]; quizGate(s ? s.name : id, s ? s.modules : [1], 2, () => done({}), grantAmount); return; }
+    SG.missions.run(id, missionCtx, results => { S.missions[id] = { targets: results.targets || 0, targetsTotal: results.targetsTotal || 0, mistakes: results.mistakes || 0, skippedBuild: !!results.skippedBuild, day: Math.floor(S.day) }; done(results); });
+  }
+  function applyMissionBonus(stationId, results, isBay) {
+    const hits = results.targets || 0;
+    if (isBay) { S.bonus.d0 = Math.min(0.06, (S.bonus.d0 || 0) + 0.006 * hits); if (hits) log(`Bay targets reached: ${hits}. Killer-defect density improves by ${(0.006 * hits).toFixed(3)}/cm².`, 'lab'); }
+    else if (hits) { S.bonus.thr[stationId] = (S.bonus.thr[stationId] || 0) + 0.05 * hits; log(`Commissioning targets reached: ${hits}. ${byId[stationId].name} throughput +${5 * hits}%.`, 'lab'); }
+    if (results.mistakes === 0 && !results.skippedBuild) { S.bonus.thr[stationId] = (S.bonus.thr[stationId] || 0) + 0.05; log('Assembled with no mistakes: +5% throughput at ' + byId[stationId].name + '.', 'lab'); }
+  }
+  function unlock(s) {
+    if (S.cash < s.cost) return;
+    runMission(s.id, results => {
+      S.cash -= s.cost; S.stats.capex += s.cost;
+      if (s.oneShot) { openLab('reticle'); } else { S.st[s.id].on = true; log('Commissioned ' + s.name + ' for ' + fmt$(s.cost), 'build'); }
+      applyMissionBonus(s.id, results, false);
+      toast('✅ Commissioned: ' + s.name, (results.targets || 0) + '/' + (results.targetsTotal || 0) + ' widget targets reached.');
+      buildChain(); save();
+    });
+  }
+  function upgrade(s) {
+    const c = upgradeCost(s); if (S.cash < c) return;
+    S.cash -= c; S.stats.capex += c; S.st[s.id].level++;
+    const card = cards[s.id]; if (card) floatText(card.card.querySelector('.st-icon'), 'L' + S.st[s.id].level, 'gold');
+    if (S.st[s.id].level % 5 === 0) { toast('⚙ Automation tier ' + tier(s), `${s.name} reached level ${S.st[s.id].level}: +25% throughput per tier.`); log(`${s.name} reached automation tier ${tier(s)}.`, 'ach'); }
+    save(); buildChain();
+  }
+  function openGuide(s) {
+    const g = s.guide;
+    modal(el('div', { class: 'guide' },
+      el('div', { class: 'tag' }, 'FIELD GUIDE · Stage ' + s.stage + ' · Module' + (s.modules.length > 1 ? 's ' : ' ') + s.modules.map(m => String(m).padStart(2, '0')).join(', ')),
+      el('h2', null, s.icon + ' ' + s.name),
+      el('p', null, el('b', null, 'What comes in: '), g.in), el('p', null, el('b', null, 'What goes out: '), g.out),
+      el('p', null, el('b', null, 'The constraint that makes it hard: '), g.constraint),
+      el('h3', null, 'Key numbers'), el('ul', null, g.numbers.map(n => el('li', null, n))),
+      el('p', null, el('b', null, 'Why it matters in the game: '), g.why),
+      el('p', { class: 'small' }, 'Read the full chapter: ', s.modules.map((m, i) => [i ? ', ' : '', el('a', { href: SG.courseLink(m), target: '_blank' }, 'Module ' + String(m).padStart(2, '0'))])),
+      el('button', { class: 'btn', onclick: closeModal }, 'Back to the floor')
+    ), { wide: true });
+  }
+  function openLab(id) {
+    const lab = SG.LABS[id]; if (!lab) return;
+    const host = el('div', { class: 'lab' }); modal(host, { wide: true });
+    lab.open(host, {
+      S, el, fmt$, fmtN, pct, diesPerWafer, yieldModel, currentD0, hbmStackYield, hbmGB, gpuPrice, priceOf, hbmConfig, closeModal, log, toast, save,
+      commitDesign(d) {
+        const first = !S.design;
+        if (!first) { if (S.cash < byId.design.cost) { toast('Not enough cash', 'A new mask set costs ' + fmt$(byId.design.cost) + '.'); return false; } S.cash -= byId.design.cost; S.stats.capex += byId.design.cost; log('Redesign: new mask set bought for ' + fmt$(byId.design.cost), 'build'); }
+        S.design = d; S.st.design.on = true;
+        log(`Design committed: ${d.n} × ${d.A} mm² die${d.n > 1 ? 's' : ''}, ${d.h} HBM stacks (${d.name}).`, 'build');
+        buildChain(); save(); return true;
+      }
+    });
+  }
+  function openPuzzle(p) {
+    const order = p.steps.map((_, i) => i); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    let next = 0, mistakes = 0;
+    const placed = el('ol', { class: 'placed' }); const pool = el('div', { class: 'pool' }); const msg = el('p', { class: 'hint' }, 'Click the step that comes first.');
+    function render() { pool.innerHTML = ''; for (const i of order) if (i >= next) pool.append(el('button', { class: 'chip', onclick: () => choose(i) }, p.steps[i][0])); }
+    function choose(i) {
+      if (i === next) { placed.append(el('li', null, el('b', null, p.steps[i][0]), el('span', { class: 'muted' }, ' — ' + p.steps[i][1]))); next++; msg.textContent = next < p.steps.length ? 'Right. What comes next?' : ''; render(); if (next === p.steps.length) finish(); }
+      else { mistakes++; msg.innerHTML = `<b>Not yet.</b> "${p.steps[i][0]}": ${p.steps[i][1]} It comes later.`; }
+    }
+    function finish() {
+      const passed = mistakes <= 2;
+      if (passed && !S.puzzles[p.id]) { S.puzzles[p.id] = true; log(`Puzzle solved: ${p.title} (+10% throughput at ${byId[p.station].name})`, 'lab'); toast('🧩 Puzzle solved', `+10% throughput at ${byId[p.station].name}.`); buildChain(); save(); }
+      msg.innerHTML = passed ? `<b>Done with ${mistakes} mistake${mistakes === 1 ? '' : 's'}.</b> ${S.puzzles[p.id] ? 'Bonus applied.' : ''}` : `<b>Done, but ${mistakes} mistakes.</b> Two or fewer earns the throughput bonus; try again.`;
+      msg.append(' ', el('button', { class: 'btn', onclick: () => openPuzzle(p) }, 'Play again'));
+    }
+    render();
+    modal(el('div', { class: 'puzzle' }, el('div', { class: 'tag' }, 'PROCESS FLOW PUZZLE · Module' + (p.modules.length > 1 ? 's ' : ' ') + p.modules.join(', ')), el('h2', null, p.title), el('p', null, p.intro), pool, msg, placed), { wide: true });
+  }
+  function openStudyHall() {
+    const mods = Object.keys(QUIZ).map(Number).sort((a, b) => a - b);
+    const total = mods.reduce((a, m) => a + QUIZ[m].questions.length, 0); const done = Object.keys(S.answered).length;
+    modal(el('div', null,
+      el('div', { class: 'tag' }, 'STUDY HALL'), el('h2', null, 'Research grants for learning'),
+      el('p', null, `Every first-time correct answer pays a grant (${fmt$(grantAmount())} right now) and adds 0.5% to the knowledge multiplier on all revenue (now ×${knowledgeMult().toFixed(3)}). ${done}/${total} questions answered. Pick a module:`),
+      el('div', { class: 'modgrid' }, mods.map(m => {
+        const q = QUIZ[m]; const c = q.questions.filter((_, i) => S.answered[m + ':' + i]).length;
+        return el('button', { class: 'chip' + (c === q.questions.length ? ' done' : ''), onclick: () => quizGate('Study: Module ' + String(m).padStart(2, '0'), [m], q.questions.length, () => { toast('Module complete', 'You answered every question in Module ' + String(m).padStart(2, '0') + '.'); save(); }, grantAmount) },
+          `${String(m).padStart(2, '0')} ${q.file.replace(/^\d+-/, '').replace(/-/g, ' ')} (${c}/${q.questions.length})`);
+      }))
+    ), { wide: true });
+  }
+  function openRisk() {
+    modal(el('div', null,
+      el('div', { class: 'tag' }, 'RISK & RESILIENCE · Modules 00, 04, 20'), el('h2', null, 'Chokepoints and how to survive them'),
+      el('p', null, 'The course names three chokepoints (EUV, the leading-edge foundry in Taiwan, CoWoS and HBM) and a fourth in Japanese materials protected by qualification lock-in. Events in this game come from those chapters. Mitigations are one-time purchases.'),
+      el('div', { class: 'mitig' }, SG.MITIGATIONS.map(m => el('div', { class: 'mitig-row' + (S.mitig[m.id] ? ' owned' : '') },
+        el('div', null, el('b', null, m.name), el('div', { class: 'small' }, m.text)),
+        S.mitig[m.id] ? el('span', { class: 'tag' }, 'OWNED') : el('button', { class: 'btn', disabled: S.cash < m.cost ? '' : null, onclick: () => { if (S.cash < m.cost) return; S.cash -= m.cost; S.stats.capex += m.cost; S.mitig[m.id] = true; log('Bought ' + m.name, 'build'); save(); openRisk(); } }, 'Buy ' + fmt$(m.cost))
+      ))),
+      el('h3', null, 'Active events'),
+      S.events.length ? el('ul', null, S.events.map(ev => { const e = SG.EVENTS.find(x => x.id === ev.id); return el('li', null, e.title + ' — ' + Math.ceil(ev.endsDay - S.day) + ' days left'); })) : el('p', { class: 'muted' }, 'None right now.')
+    ), { wide: true });
+  }
+  function openFabFloor() {
+    const rows = REQUIRED_BAYS.concat(OPTIONAL_BAYS).map(id => {
+      const M = SG.MISSIONS[id]; const done = !!S.bays[id]; const req = REQUIRED_BAYS.includes(id);
+      return el('div', { class: 'bay-row' + (done ? ' done' : '') },
+        el('div', null, el('b', null, M.title), ' ', el('span', { class: 'tag' }, req ? 'REQUIRED' : 'OPTIONAL · +10% fab throughput'), el('div', { class: 'small muted' }, M.brief[0].p.slice(0, 160) + '…')),
+        done ? el('span', { class: 'ok' }, '✓ commissioned' + (S.missions[id] ? ` (${S.missions[id].targets}/${S.missions[id].targetsTotal} targets)` : '')) : el('button', { class: 'btn primary', disabled: S.cash < M.cost ? '' : null, onclick: () => { if (S.cash < M.cost) return; runMission(id, results => { S.cash -= M.cost; S.stats.capex += M.cost; S.bays[id] = true; applyMissionBonus('fab', results, true); log('Commissioned ' + M.title + ' for ' + fmt$(M.cost), 'build'); toast('✅ Bay commissioned', M.title); buildChain(); save(); openFabFloor(); }); } }, 'Commission · ' + fmt$(M.cost)));
+    });
+    modal(el('div', null, el('div', { class: 'tag' }, 'FAB FLOOR · Modules 05–13'), el('h2', null, 'The eight bays'),
+      el('p', null, `A fab is a floor of tool bays that every wafer visits dozens of times. The six process bays must be commissioned before the first wafer moves (${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6 done). Each bay is its own mission; targets reached in the bays lower your killer-defect density permanently.`),
+      el('div', null, rows)), { wide: true });
+  }
+  function openNodeMigration() {
+    const order = ['N5', 'N3', 'N2']; const cur = order.indexOf(S.node); const nextNode = order[cur + 1];
+    const id = nextNode === 'N3' ? 'node-n3' : nextNode === 'N2' ? 'node-n2' : null;
+    const body = el('div', null, el('div', { class: 'tag' }, 'PROCESS NODE · Modules 11, 20'), el('h2', null, 'Current node: ' + S.node),
+      el('p', null, `Finished wafers sell for ${fmt$(S.nodeFx.waferPrice)}, fab opex is ${fmt$(S.nodeFx.opex)} per wafer, and your GPU's silicon is worth ×${S.nodeFx.density} per mm² versus N5. D0 on this node: ${currentD0().toFixed(3)}/cm² after ${fmtN(S.wafersRun)} wafers.`));
+    if (!id) body.append(el('p', { class: 'ok' }, 'You are on the leading node. Push D0 down and redesign for it.'));
+    else {
+      const M = SG.MISSIONS[id];
+      body.append(el('p', null, el('b', null, 'Migrate to ' + nextNode + ' for ' + fmt$(M.cost) + '. '), `Wafer price rises to ${fmt$(M.effect.waferPrice)}, opex to ${fmt$(M.effect.opex)}, silicon value ×${M.effect.density}. The yield learning curve restarts: D0 goes back to ~0.5/cm² and falls only as you run wafers on the new node.`),
+        el('button', { class: 'btn primary', disabled: S.cash < M.cost ? '' : null, onclick: () => { if (S.cash < M.cost) return; runMission(id, results => { S.cash -= M.cost; S.stats.capex += M.cost; S.node = M.effect.node; S.nodeFx = { waferPrice: M.effect.waferPrice, opex: M.effect.opex, density: M.effect.density }; S.wafersRun = 0; applyMissionBonus('fab', results, true); log(`Migrated the fab to ${M.effect.node}. D0 learning restarts.`, 'build'); toast('⬆ Node migration', 'Welcome to ' + M.effect.node + '. Watch D0 in the header.'); buildChain(); save(); }); } }, 'Start the migration mission'));
+    }
+    modal(body, { wide: true });
+  }
+  function showWin() {
+    modal(el('div', null, el('div', { class: 'tag' }, 'SAND → GPU'), el('h2', null, 'You shipped a rack.'),
+      el('p', null, `Day ${Math.floor(S.day)}. Quartz became metallurgical silicon, then 9N polysilicon, a single crystal, a polished wafer, ~1,000 fab steps, a sorted die, an HBM stack, a CoWoS package, a tested GPU, and finally a 72-GPU NVLink domain drawing ~120 kW.`),
+      el('p', null, `You have answered ${Object.keys(S.answered).length} of the course's quiz questions and earned ${Object.keys(S.ach).length} achievements. The chain keeps running: push D0 down, migrate the node, redesign for bigger dies, and finish the Study Hall.`),
+      el('button', { class: 'btn primary', onclick: closeModal }, 'Keep building')));
+  }
+  function offlineProgress() {
+    const away = (Date.now() - (S.lastSeen || Date.now())) / 1000;
+    if (away < 60 || !S.st.furnace.on) return;
+    const days = Math.min(600, Math.floor(away)) ; const before = S.cash;
+    simulating = true; for (let i = 0; i < days; i++) tick(0.5); simulating = false; // half speed while away
+    const gained = S.cash - before;
+    log(`While you were away (${Math.round(away / 60)} min): the chain ran ${days / 2} days at half speed, ${gained >= 0 ? 'earning ' + fmt$(gained) : 'losing ' + fmt$(-gained)}.`, 'ach');
+    modal(el('div', null, el('div', { class: 'tag' }, 'WHILE YOU WERE AWAY'), el('h2', null, gained >= 0 ? '+' + fmt$(gained) : fmt$(gained)),
+      el('p', null, `Your chain kept running at half speed for ${days / 2} game days (up to 300 days per absence). Warehouses that filled up sold surplus on the spot market.`),
+      el('button', { class: 'btn primary', onclick: closeModal }, 'Back to work')));
+  }
+
+  // ---------- objective ----------
+  function objective() {
+    if (!S.st.mine.on) return { text: 'Commission the quartz mine (free). It is the tutorial.', pct: 0 };
+    const nextLocked = SG.STATIONS.find(s => !S.st[s.id].on);
+    if (S.st.fab.on && !baysReady()) { const done = REQUIRED_BAYS.filter(b => S.bays[b]).length; const next = REQUIRED_BAYS.find(b => !S.bays[b]); const M = SG.MISSIONS[next]; return { text: `Commission the fab bays (${done}/6). Next: ${M.title} for ${fmt$(M.cost)}.`, pct: Math.min(1, S.cash / M.cost), sub: `${fmt$(S.cash)} / ${fmt$(M.cost)}` }; }
+    if (nextLocked) return { text: `${nextLocked.oneShot ? 'Tape out a design at the' : 'Commission the'} ${nextLocked.name} for ${fmt$(nextLocked.cost)}.`, pct: Math.min(1, S.cash / Math.max(1, nextLocked.cost)), sub: `${fmt$(S.cash)} / ${fmt$(nextLocked.cost)}` };
+    const worst = SG.STATIONS.filter(s => S.st[s.id].on && flow[s.id] && flow[s.id].util >= 0.98).pop();
+    if (S.node !== 'N2') { const id = S.node === 'N5' ? 'node-n3' : 'node-n2'; const M = SG.MISSIONS[id]; return { text: `Chain complete. Keep racks shipping; migrate to ${M.effect.node} for ${fmt$(M.cost)}${worst ? ` (bottleneck now: ${worst.name})` : ''}.`, pct: Math.min(1, S.cash / M.cost), sub: `${fmt$(S.cash)} / ${fmt$(M.cost)}` }; }
+    return { text: 'Leading edge reached. Push D0 down, finish the Study Hall, collect every achievement.', pct: Object.keys(S.answered).length / 176, sub: Object.keys(S.answered).length + '/176 questions' };
+  }
+
+  // ---------- rendering ----------
+  const cards = {}; const belts = {}; let shownCash = S.cash;
+  function buildChain() {
+    const host = $('#chain'); host.innerHTML = ''; for (const k in cards) delete cards[k]; for (const k in belts) delete belts[k];
+    SG.STATIONS.forEach((s, idx) => {
+      const st = S.st[s.id]; const on = st.on; const color = SG.STAGE_COLORS[s.id] || '#5fa8d3';
+      const card = el('div', { class: 'station ' + (on ? 'on' : 'locked') + (s.parallel ? ' parallel' : ''), 'data-id': s.id, style: '--c:' + color });
+      card.append(el('div', { class: 'st-top' }, el('div', { class: 'st-title' }, el('div', { class: 'st-name' }, s.name), el('div', { class: 'st-stage' }, 'Stage ' + s.stage + ' · Module' + (s.modules.length > 1 ? 's ' : ' ') + s.modules.map(m => String(m).padStart(2, '0')).join(', '))),
+        on && !s.oneShot ? el('span', { class: 'lvl' }, 'L' + st.level + (tier(s) ? ' · T' + tier(s) : '')) : (on ? el('span', { class: 'lvl' }, 'built') : el('span', { class: 'lvl locked' }, 'locked'))));
+      // illustration: the course's apparatus scene or glyph, clickable for a manual shift
+      const icon = el('button', { class: 'st-art', title: on ? 'Run a manual shift' : 'Locked', onclick: () => manualShift(s, icon) });
+      const art = SG.STATION_ART[s.id];
+      if (art && art.scene && window.SG_SCENES && window.SG_SCENES[art.scene]) { const sc = window.SG_SCENES[art.scene]; icon.innerHTML = `<figure class="section-figure sf-scene"><div class="sf-drawing"><svg viewBox="${art.box || ('0 0 700 ' + sc.height)}" preserveAspectRatio="xMidYMid meet"><defs><marker id="${sc.marker}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 6 3 0 6" class="sf-arrowhead"/></marker></defs>${sc.art}</svg></div></figure>`; }
+      else if (art && art.glyph && window.SG_GLYPHS && window.SG_GLYPHS[art.glyph]) { icon.innerHTML = `<figure class="section-figure"><div class="sf-drawing"><svg viewBox="-54 -49 108 98" class="glyph">${window.SG_GLYPHS[art.glyph]}</svg></div></figure>`; }
+      else icon.textContent = s.icon;
+      if (!s.oneShot) icon.append(el('span', { class: 'ring' }, el('span', { html: '<svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" cx="22" cy="22" r="18"/></svg>' }), el('span', { class: 'ring-t' }, on ? '0%' : '')));
+      if (!on) icon.append(el('span', { class: 'lock-badge' }, '🔒'));
+      card.append(icon);
+      if (!on) card.append(el('p', { class: 'st-short' }, s.short));
+      if (s.parallel) card.append(el('div', { class: 'branch-note' }, 'Parallel branch: uses polished wafers, feeds CoWoS'));
+      const status = el('div', { class: 'status' }); card.append(status);
+      const actions = el('div', { class: 'actions' });
+      if (!on) actions.append(el('button', { class: 'btn primary unlock', onclick: () => unlock(s) }, s.cost === 0 ? '▶ Commission (free)' : `${s.oneShot ? 'Tape out' : 'Commission'} · ${fmt$(s.cost)}`));
+      else {
+        if (!s.oneShot) actions.append(el('button', { class: 'btn primary upg', onclick: () => upgrade(s) }, 'Upgrade'));
+        if (s.oneShot) actions.append(el('button', { class: 'btn primary', onclick: () => openLab('reticle') }, '📐 Design Studio'));
+        if (s.id === 'fab') actions.append(el('button', { class: 'btn' + (baysReady() ? '' : ' attention'), onclick: openFabFloor }, `🏗 Bays ${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6`), el('button', { class: 'btn', onclick: openNodeMigration }, '⬆ ' + S.node));
+      }
+      const more = el('div', { class: 'more' });
+      more.append(el('button', { class: 'btn ghost', onclick: () => openGuide(s) }, '📖 Guide'));
+      if (on && s.lab && !s.oneShot) more.append(el('button', { class: 'btn lab' + (S.labs[s.lab] ? ' done' : ''), onclick: () => openLab(s.lab) }, '🧪 ' + SG.LABS[s.lab].title));
+      if (on && s.lab2) more.append(el('button', { class: 'btn lab' + (S.labs[s.lab2] ? ' done' : ''), onclick: () => openLab(s.lab2) }, '🧪 ' + SG.LABS[s.lab2].title));
+      for (const p of SG.PUZZLES) if (on && p.station === s.id) more.append(el('button', { class: 'btn ghost' + (S.puzzles[p.id] ? ' done' : ''), onclick: () => openPuzzle(p) }, '🧩 Puzzle'));
+      if (on && SG.missions && SG.EXPLORE && SG.EXPLORE[s.id]) more.append(el('button', { class: 'btn ghost', onclick: () => SG.missions.explore(s.id, missionCtx, { title: s.name + ': interactives and figures' }) }, '🧭 Explore'));
+      card.append(actions, more);
+      host.append(card);
+      cards[s.id] = { card, status, actions, icon };
+      if (idx < SG.STATIONS.length - 1) {
+        const outRes = Object.keys(s.outputs)[0];
+        const belt = el('div', { class: 'belt', style: '--c:' + (outRes ? SG.RES[outRes].color : color) }, el('div', { class: 'belt-track' }), el('div', { class: 'belt-label' }, outRes ? (SG.RES_SHORT[outRes] || SG.RES[outRes].name) : ''));
+        host.append(belt); belts[s.id] = belt;
+      }
+    });
+    renderResources(true); renderSide();
+  }
+  function updateChain() {
+    for (const s of SG.STATIONS) {
+      const c = cards[s.id]; if (!c) continue; const st = S.st[s.id];
+      if (!st.on) {
+        const ok = S.cash >= s.cost; const p = s.cost ? Math.min(1, S.cash / s.cost) : 1;
+        c.status.innerHTML = `<div class="bar save"><div class="fill" style="width:${Math.round(p * 100)}%"></div></div><div class="small ${ok ? 'ok' : 'muted'}">${ok ? 'Affordable. Play the commissioning mission.' : `Saving: ${fmt$(S.cash)} of ${fmt$(s.cost)} (${pct(p)})`}</div>`;
+        const b = c.actions.querySelector('.unlock'); if (b) b.disabled = !ok; continue;
+      }
+      if (s.oneShot) { c.status.innerHTML = S.design ? `<div class="small"><b>${S.design.name}</b>: ${S.design.n} × ${S.design.A} mm², ${S.design.h} HBM · ${S.design.model === 'poisson' ? 'Poisson' : S.design.model === 'murphy' ? 'Murphy' : 'negative binomial'} yield</div>` : '<div class="small warn">No design yet.</div>'; continue; }
+      const f = flow[s.id]; const cap = capacity(s); const em = eventMult(s.id);
+      const util = f ? f.util : 0; const fg = c.icon.querySelector('.ring-fg'); if (fg) { fg.style.strokeDasharray = `${(util * 113.1).toFixed(1)} 113.1`; } const rt = c.icon.querySelector('.ring-t'); if (rt) rt.textContent = pct(util);
+      c.card.classList.toggle('running', util > 0.02); c.card.classList.toggle('starved', !!(f && f.starved));
+      let html = `<div class="st-rate"><b>${f ? fmtN(f.rate) : 0}</b><span class="muted"> / ${fmtN(cap)} cycles/day</span></div>`;
+      const ins = Object.entries(s.inputs).map(([r, q]) => { const cap = warehouseCap(r); const p = isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock"><span class="stock-name" style="color:${SG.RES[r].color}">${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${fmtN(S.res[r])}</span></div>`; }).join('');
+      const outs = Object.entries(s.outputs).map(([r, q]) => { const cap = warehouseCap(r); const hasC = consumersOf(r).some(c => S.st[c.id].on); const p = hasC && isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock out"><span class="stock-name" style="color:${SG.RES[r].color}">→ ${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${hasC ? fmtN(S.res[r]) : 'sells'}</span></div>`; }).join('');
+      html += `<div class="stocks">${ins}${outs}</div>`;
+      let msg = '';
+      if (f && f.starved) msg = `<span class="warn">⏳ starved of ${f.starved}</span>`;
+      else if (f && f.blocked) msg = `<span class="warn">📦 warehouse full: ${f.blocked}</span>`;
+      else if (f && f.util >= 0.98) msg = `<span class="ok">⚡ running flat out</span>`;
+      if (em < 1) msg += ` <span class="warn">event ×${em.toFixed(2)}</span>`;
+      const extra = [];
+      if (s.id === 'sort' && S.design) extra.push(`${diesPerWafer(S.design.A)} dies × ${pct(yieldModel(S.design.model || 'nb', S.design.A / 100, currentD0(), 3))} = ${fmtN(goodDiesPerWafer())} good/wafer`);
+      if (s.id === 'hbm') { const hc = hbmConfig(); extra.push(`${hc.height}-high · stack yield ${pct(hbmStackYield(hc))}`); }
+      if (s.id === 'systems') extra.push(`field failures ${(fieldFail() * 100).toFixed(2)}%`);
+      if (s.id === 'fab') extra.push(`opex ${fmt$(stationOpex(s))}/wafer · ${S.node}`);
+      html += `<div class="st-msg">${msg}${extra.length ? '<div class="small muted">' + extra.join(' · ') + '</div>' : ''}</div>`;
+      c.status.innerHTML = html;
+      const u = c.actions.querySelector('.upg'); if (u) { const uc = upgradeCost(s); u.innerHTML = `⬆ L${st.level + 1} <span class="price">${fmt$(uc)}</span>`; u.disabled = S.cash < uc; u.classList.toggle('affordable', S.cash >= uc); }
+      const belt = belts[s.id]; if (belt) { const rate = f ? f.util : 0; belt.classList.toggle('paused', !f || f.rate <= 0); belt.style.setProperty('--dur', (rate > 0 ? (3.2 - 2.4 * Math.min(1, rate)) : 3).toFixed(2) + 's'); }
+    }
+  }
+  const resRows = {};
+  function renderResources(rebuild) {
+    const host = $('#resources');
+    if (rebuild) { host.innerHTML = ''; for (const k in resRows) delete resRows[k];
+      for (const r of Object.keys(SG.RES)) {
+        const row = el('div', { class: 'res-row', style: '--c:' + SG.RES[r].color });
+        const sel = el('select', { onchange: e => { S.sell[r] = e.target.value; save(); } }, ['auto', 'hold', 'all'].map(v => el('option', { value: v, selected: (S.sell[r] || 'auto') === v ? '' : null }, v === 'auto' ? 'Auto' : v === 'hold' ? 'Hold' : 'Sell all')));
+        row.append(el('span', { class: 'res-name' }, SG.RES[r].name), el('span', { class: 'res-stock' }), el('span', { class: 'res-price small muted' }), el('span', { class: 'res-sold small' }), sel);
+        host.append(row); resRows[r] = row;
+      }
+    }
+    for (const r of Object.keys(SG.RES)) {
+      const row = resRows[r]; const p = producerOf(r);
+      const visible = S.res[r] > 0 || (p && S.st[p.id].on) || (S.stats.sold[r] || 0) > 0;
+      row.style.display = visible ? '' : 'none'; if (!visible) continue;
+      row.querySelector('.res-stock').textContent = fmtN(S.res[r]) + ' ' + SG.RES[r].unit;
+      const cap = warehouseCap(r); row.querySelector('.res-price').textContent = fmt$(priceOf(r)) + (isFinite(cap) && consumersOf(r).some(c => S.st[c.id].on) ? ` · cap ${fmtN(cap)}` : ' · spot');
+      row.querySelector('.res-sold').textContent = (S.stats.sold[r] || 0) > 0 ? 'sold ' + fmtN(S.stats.sold[r]) : '';
+    }
+  }
+  function renderLog() { const host = $('#log'); if (!host) return; host.innerHTML = ''; for (const l of S.log) host.append(el('div', { class: 'log-row ' + (l.cls || '') }, el('span', { class: 'log-day' }, 'd' + l.day), ' ', l.text)); }
+  function renderSide() {
+    const host = $('#achievements'); if (!host) return; host.innerHTML = '';
+    const earned = SG.ACHIEVEMENTS.filter(a => S.ach[a.id]).length;
+    host.append(el('div', { class: 'small muted' }, `${earned}/${SG.ACHIEVEMENTS.length} earned · revenue ×${(1 + (S.achMult || 0)).toFixed(2)} from achievements · ×${knowledgeMult().toFixed(3)} from knowledge`));
+    for (const a of SG.ACHIEVEMENTS) host.append(el('div', { class: 'ach' + (S.ach[a.id] ? ' earned' : '') }, el('span', { class: 'ach-ic' }, S.ach[a.id] ? '🏆' : '○'), el('div', null, el('b', null, a.title), el('div', { class: 'small muted' }, a.text + ' · ' + (a.reward.mult ? '+' + Math.round(a.reward.mult * 100) + '% revenue' : '+' + fmt$(a.reward.cash))))));
+  }
+  function renderHeader() {
+    $('#h-day').textContent = String(Math.floor(S.day));
+    shownCash += (S.cash - shownCash) * 0.35; if (Math.abs(S.cash - shownCash) < 1) shownCash = S.cash;
+    $('#h-cash').textContent = fmt$(shownCash); $('#h-cash').classList.toggle('neg', S.cash < 0);
+    $('#h-income').textContent = (S.income >= 0 ? '+' : '') + fmt$(S.income) + '/day';
+    $('#h-d0').textContent = currentD0().toFixed(3) + '/cm²';
+    $('#h-node').textContent = S.node + ' · ' + fmtN(S.wafersRun) + ' wafers';
+    const total = Object.values(QUIZ).reduce((a, q) => a + q.questions.length, 0);
+    $('#h-know').textContent = Object.keys(S.answered).length + '/' + total;
+    $('#h-mult').textContent = '×' + revMult().toFixed(2);
+    $('#h-events').textContent = S.events.length ? S.events.length + ' event' + (S.events.length > 1 ? 's' : '') : '';
+    const o = objective(); $('#obj-text').textContent = o.text; $('#obj-fill').style.width = Math.round((o.pct || 0) * 100) + '%'; $('#obj-sub').textContent = o.sub || '';
+  }
+  function flushFloaters() {
+    let total = 0; let lastRes = null;
+    for (const r of Object.keys(soldTick)) { if (soldTick[r] > 0) { total += soldTick[r]; lastRes = r; soldTick[r] = 0; } }
+    if (total > 0 && lastRes) { const p = producerOf(lastRes); const c = p && cards[p.id]; if (c) floatText(c.icon, '+' + fmt$(total), 'gold'); }
+  }
+
+  // ---------- loop ----------
+  let last = performance.now(); let acc = 0, acc2 = 0;
+  function frame(now) {
+    const dtReal = Math.min(1.0, (now - last) / 1000); last = now;
+    const speed = S.speed == null ? 1 : S.speed;
+    if (speed > 0 && !modalRoot().classList.contains('open')) { let remaining = dtReal * speed; while (remaining > 1e-6) { const h = Math.min(0.1, remaining); tick(h); remaining -= h; } }
+    acc += dtReal; acc2 += dtReal;
+    if (acc > 0.25) { acc = 0; renderHeader(); updateChain(); renderResources(false); }
+    if (acc2 > 1.0) { acc2 = 0; checkAchievements(); flushFloaters(); }
+    requestAnimationFrame(frame);
+  }
+  setInterval(save, 5000);
+
+  // ---------- wiring ----------
+  function init() {
+    $('#btn-study').addEventListener('click', openStudyHall);
+    $('#btn-risk').addEventListener('click', openRisk);
+    $('#btn-help').addEventListener('click', showHelp);
+    $('#btn-reset').addEventListener('click', () => { if (confirm('Start over? This wipes your save.')) { S = freshState(); localStorage.removeItem(SAVE_KEY); buildChain(); renderLog(); } });
+    $('#speed').addEventListener('change', e => { S.speed = Number(e.target.value); });
+    $('#speed').value = String(S.speed == null ? 1 : S.speed);
+    document.querySelectorAll('.side-tab').forEach(t => t.addEventListener('click', () => { document.querySelectorAll('.side-tab').forEach(x => x.classList.toggle('sel', x === t)); document.querySelectorAll('.side-pane').forEach(p => p.classList.toggle('show', p.id === t.dataset.pane)); }));
+    buildChain(); renderLog(); renderHeader();
+    if (!S.log.length) { log('Welcome. You have a quartz claim and $300k. Build the chain from sand to a 72-GPU rack. Every station is a commissioning mission: brief, build it, tune the real thing, certify. Click a station icon to run a manual shift.', 'milestone'); showHelp(); }
+    else offlineProgress();
+    requestAnimationFrame(frame);
+  }
+  function showHelp() {
+    modal(el('div', null,
+      el('div', { class: 'tag' }, 'HOW TO PLAY'), el('h2', null, 'Sand to GPU: Foundry'),
+      el('p', null, 'A production-chain game built from the course. One game second is one day. Resources flow left to right along the belt; whatever the furthest station makes is sold, and upstream surplus beyond a 30-day warehouse is dumped on the spot market.'),
+      el('ul', null,
+        el('li', null, el('b', null, 'Commission each station. '), 'No reading required first: a briefing on the course\'s figures, then you assemble the machine part by part on the course\'s own drawing, then you tune the course\'s real interactives against live targets, then a short certification from the course\'s quizzes.'),
+        el('li', null, el('b', null, 'Click to work. '), 'Click any station icon to run a manual shift. Rush orders pop up now and then; click them before they vanish.'),
+        el('li', null, el('b', null, 'Find the bottleneck. '), 'Cards show the gauge, "starved of X" and "warehouse full". Upgrade levels; every fifth level is an automation tier worth +25%.'),
+        el('li', null, el('b', null, 'Go deep in the fab. '), 'Eight tool bays, each its own mission. Six are required before a wafer moves. Later, migrate the node and watch D0 learning restart.'),
+        el('li', null, el('b', null, 'Multiply. '), 'Every quiz answer adds 0.5% to all revenue forever; achievements add more. The Study Hall pays a grant per answer. Your chain keeps running at half speed while you are away.')),
+      el('p', { class: 'small muted' }, 'Capex and rates are scaled for play; the numbers in the briefings, widgets, labs and quizzes are the course\'s.'),
+      el('button', { class: 'btn primary', onclick: closeModal }, 'To the floor')
+    ), { wide: true });
+  }
+  window.addEventListener('DOMContentLoaded', init);
+  SG.engine = { get S() { return S; }, buildChain, openLab, priceOf, currentD0, tick, upgradeCost, capacity, byId, flow, spawnRush };
+})();

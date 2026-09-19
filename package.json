@@ -1,0 +1,13 @@
+{
+  "name": "sand-to-gpu-foundry",
+  "version": "0.3.0",
+  "description": "Sand to GPU: Foundry — a production-chain game that teaches the semiconductor supply chain, built from the Sand to GPU course.",
+  "private": true,
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/DicksonWu654/sand-to-gpu-foundry.git" },
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node serve.js",
+    "sync": "node tools/sync-course.js"
+  }
+}
