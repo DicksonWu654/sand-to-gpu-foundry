@@ -142,7 +142,11 @@
     let demand = 0; for (const c of consumersOf(r)) if (S.st[c.id].on && c.rate > 0 && !blocked(c)) demand += capacity(c) * resolveQty(c.inputs[r]);
     return Math.max(demand * 30 * (S.mitig.stockpile ? 3 : 1), out * 2);
   }
-  function blocked(s) { return (s.needsDesign && !S.design) ? 'a mask set (open the Design Studio)' : null; }
+  function blocked(s) {
+    if (s.needsDesign && !S.design) return 'a mask set (open the Design Studio)';
+    if (s.id === 'fab' && !baysReady() && valueAdd(s) < 0) return `idle: outsourcing ${baysMissing().length} steps costs more than a wafer earns (open the Fab floor)`;
+    return null;
+  }
   const OUTSOURCE_FEE = 2500; // per wafer per missing process bay: the steps are bought from another fab
   function outsourceFee() { return baysMissing().length * OUTSOURCE_FEE; }
 
@@ -197,7 +201,7 @@
     }
     if (S.contract && S.day >= S.contract.deadline) failContract();
     for (const ev of S.events.slice()) if (S.day >= ev.endsDay) { S.events.splice(S.events.indexOf(ev), 1); log('Event over: ' + SG.EVENTS.find(e => e.id === ev.id).title, 'muted'); }
-    if (!simulating && S.st.fab.on && (!S.nextEvent || S.day >= S.nextEvent)) { if (S.nextEvent) fireEvent(); S.nextEvent = S.day + 120 + Math.random() * 120; }
+    if (!simulating && S.st.siemens.on && (!S.nextEvent || S.day >= S.nextEvent)) { if (S.nextEvent) fireEvent(); S.nextEvent = S.day + 60 + Math.random() * 60; }
     if (!simulating && S.st.furnace.on && !S.contract && (!S.nextRush || S.day >= S.nextRush)) { if (S.nextRush) spawnRush(); S.nextRush = S.day + 60 + Math.random() * 90; }
     incomeWindow.push({ d: dt, c: S.cash - cashBefore });
     while (incomeWindow.length > 100) incomeWindow.shift();
@@ -252,22 +256,24 @@
   function spawnRush() {
     if ($('.rush') || S.contract) return;
     const ep = endProduct(); if (!ep) return;
-    const perDay = capacity(ep.s) * resolveQty(ep.s.outputs[ep.r]); if (!(perDay > 0)) return;
+    if (consumersOf(ep.r).some(c => S.st[c.id].on)) return; // only the end product, which has no consumer yet
+    const f = flow[ep.s.id]; const perDay = (f ? f.rate : 0) * resolveQty(ep.s.outputs[ep.r]); if (!(perDay > 0)) return; // sized on actual output, not capacity
     const c = SG.CONTRACTS[Math.floor(Math.random() * SG.CONTRACTS.length)];
-    const n = Math.max(1, Math.round(perDay * 3)); const days = 8; const price = priceOf(ep.r) * 1.3;
+    const n = Math.max(1, Math.round(perDay * 10)); const days = 8; const price = priceOf(ep.r) * 1.3;
     const btn = el('button', { class: 'rush', style: `left:${10 + Math.random() * 70}%; top:${20 + Math.random() * 50}%` }, el('b', null, ic('flag'), 'Contract offer'), el('span', null, `${c.title}: ${fmtN(n)} ${SG.RES_SHORT[ep.r] || ep.r} in ${days} days at +30%`));
     const timer = setTimeout(() => btn.remove(), 16000);
     btn.addEventListener('click', () => {
       clearTimeout(timer); btn.remove();
       modal(el('div', null, el('div', { class: 'tag' }, 'CONTRACT OFFER · day ' + Math.floor(S.day)), el('h2', null, c.title),
-        el('p', null, `Deliver ${fmtN(n)} ${SG.RES[ep.r].name}${n > 1 ? 's' : ''} within ${days} days (by day ${Math.floor(S.day) + days}) at ${fmt$(price)} each, 30% above market: ${fmt$(n * price)} in total. Miss the deadline and you owe 20% of the undelivered value. Your line makes ~${fmtN(perDay)} a day, so this is about three days of output with eight to do it.`),
+        el('p', null, `Deliver ${fmtN(n)} ${SG.RES[ep.r].name}${n > 1 ? 's' : ''} within ${days} days (by day ${Math.floor(S.day) + days}) at ${fmt$(price)} each, 30% above market: ${fmt$(n * price)} in total. Miss the deadline and you owe 50% of the undelivered value. Your line makes ~${fmtN(perDay)} a day today, so this is ten days of output with eight to do it: you will need to add capacity, run manual shifts, or have stock in hand.`),
         el('p', { class: 'muted' }, c.text),
         el('div', { class: 'mission-nav' }, el('button', { class: 'btn primary', onclick: () => { S.contract = { r: ep.r, n, delivered: 0, deadline: S.day + days, price, title: c.title }; log(`Contract accepted: ${fmtN(n)} ${SG.RES[ep.r].name} by day ${Math.floor(S.contract.deadline)} at +30%.`, 'ach'); closeModal(); } }, 'Accept'), el('button', { class: 'btn', onclick: closeModal }, 'Decline'))));
     });
     document.body.append(btn);
   }
   function completeContract() { const c = S.contract; if (!c) return; S.contract = null; S.stats.rush = (S.stats.rush || 0) + 1; log(`Contract delivered in full: ${c.title}, ${fmtN(c.n)} ${SG.RES[c.r].name} at +30%.`, 'ach'); if (!simulating) toast('💰 Contract delivered', `${c.title}: ${fmtN(c.n)} ${SG.RES[c.r].name} on time. +30% on every unit.`); }
-  function failContract() { const c = S.contract; if (!c) return; S.contract = null; const short = c.n - c.delivered; const penalty = 0.2 * short * c.price; S.cash -= penalty; log(`Contract missed: ${c.title}, ${fmtN(short)} ${SG.RES[c.r].name} short. Penalty ${fmt$(penalty)}.`, 'event'); if (!simulating) toast('⚠ Contract missed', `${fmtN(short)} ${SG.RES[c.r].name} short of ${fmtN(c.n)}: penalty ${fmt$(penalty)}. Capacity you promise has to exist when the date arrives.`); }
+  function cancelContract(reason) { const c = S.contract; if (!c) return; S.contract = null; log(`Contract cancelled without penalty: ${c.title}. ${reason}`, 'muted'); if (!simulating) toast('Contract cancelled', reason); }
+  function failContract() { const c = S.contract; if (!c) return; S.contract = null; const short = c.n - c.delivered; const penalty = 0.5 * short * c.price; S.cash -= penalty; log(`Contract missed: ${c.title}, ${fmtN(short)} ${SG.RES[c.r].name} short. Penalty ${fmt$(penalty)}.`, 'event'); if (!simulating) toast('⚠ Contract missed', `${fmtN(short)} ${SG.RES[c.r].name} short of ${fmtN(c.n)}: penalty ${fmt$(penalty)}. Capacity you promise has to exist when the date arrives.`); }
   // manual shift: click a station to run cycles now
   function manualShift(s, iconEl) {
     if (!S.st[s.id].on || s.rate === 0) return;
@@ -349,7 +355,7 @@
     ask();
   }
   function objectiveCost() { if (!S.st.mine.on) return 4e6; if (S.st.fab.on && !baysReady()) { const next = REQUIRED_BAYS.find(b => !S.bays[b]); return SG.MISSIONS[next].cost; } const nextLocked = SG.STATIONS.find(s => !S.st[s.id].on); if (nextLocked) return Math.max(4e6, nextLocked.cost); if (S.node !== 'N2') return SG.MISSIONS[S.node === 'N5' ? 'node-n3' : 'node-n2'].cost; return 2e9; }
-  function grantAmount() { return Math.max(10000, 0.0025 * objectiveCost()); }
+  function grantAmount() { return Math.max(10000, 0.0025 * Math.min(objectiveCost(), byId.fab.cost)); }
 
   // ---------- missions and actions ----------
   const missionCtx = { modal, closeModal, quizGate, grantAmount };
@@ -367,7 +373,7 @@
     if (S.cash < s.cost) return;
     runMission(s.id, results => {
       S.cash -= s.cost; S.stats.capex += s.cost;
-      if (s.oneShot) { openLab('reticle'); } else { S.st[s.id].on = true; log('Commissioned ' + s.name + ' for ' + fmt$(s.cost), 'build'); }
+      if (s.oneShot) { openLab('reticle'); } else { S.st[s.id].on = true; log('Commissioned ' + s.name + ' for ' + fmt$(s.cost), 'build'); if (S.contract && s.inputs[S.contract.r] !== undefined) cancelContract(`${s.name} now consumes ${SG.RES[S.contract.r].name}, so the ${S.contract.title} order is voided.`); }
       applyMissionBonus(s.id, results, false);
       toast('✅ Commissioned: ' + s.name, (results.targets || 0) + '/' + (results.targetsTotal || 0) + ' widget targets reached.');
       buildChain(); save();
@@ -512,12 +518,12 @@
   function offlineProgress() {
     const away = (Date.now() - (S.lastSeen || Date.now())) / 1000;
     if (away < 60 || !S.st.furnace.on) return;
-    const days = Math.min(60, Math.floor(away / 2)); const before = S.cash;
+    const days = Math.min(60, Math.floor(away / 10)); if (days < 1) return; const before = S.cash;
     simulating = true; for (let i = 0; i < days * 2; i++) tick(0.5); simulating = false;
     const gained = S.cash - before;
     log(`While you were away (${Math.round(away / 60)} min): the chain ran ${days} days, ${gained >= 0 ? 'earning ' + fmt$(gained) : 'losing ' + fmt$(-gained)}.`, 'ach');
     modal(el('div', null, el('div', { class: 'tag' }, 'WHILE YOU WERE AWAY'), el('h2', null, gained >= 0 ? '+' + fmt$(gained) : fmt$(gained)),
-      el('p', null, `Your chain kept running for ${days} game days (one day for every two seconds away, up to 60 days per absence). Warehouses that filled up sold surplus at market price.`),
+      el('p', null, `Your chain kept running for ${days} game days (one day for every ten seconds away, up to 60 days per absence). Warehouses that filled up sold surplus at market price.`),
       el('button', { class: 'btn primary', onclick: closeModal }, 'Back to work')));
   }
 
