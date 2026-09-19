@@ -69,7 +69,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'fab-flow' }], certify: { modules: [5], n: 2 }
   },
   'bay-clean': {
-    title: 'Cleanroom & AMHS bay', bay: true, optional: true, cost: 10000000, brief: [
+    title: 'Cleanroom & AMHS bay', bay: true, optional: true, cost: 50000000, brief: [
       { h: 'Clean air', p: 'ISO class 5 allows 3,520 particles of 0.5 µm per m³, about 10,000× cleaner than city air. Filtered air comes down through the ceiling at ~0.3–0.5 m/s and crosses the room in seconds. Wafers spend most of their life inside sealed FOUPs anyway.', fig: 'm05/cleanroom-classes-and-airflow' },
       { h: 'Wafers in motion', p: 'Overhead hoist transport carries 25-wafer FOUPs between bays; the queue at each tool, not the tool time, sets the cycle time; the next card says by how much.' },
       { h: 'Why fabs run below full load', p: 'Waiting time scales as u/(1 − u). At 80% utilization a tool\'s queue term is 4, at 90% it is 9, at 95% it is 19. Raw process time is only 25–50% of the ~90-day cycle; the rest is queueing, so only bottleneck tools are run near full.' }
@@ -78,7 +78,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'fab-anatomy' }, { widget: 'amhs-sim' }], certify: { modules: [5], n: 1 }
   },
   'bay-oxdep': {
-    title: 'Oxidation & deposition bay', bay: true, cost: 12000000, brief: [
+    title: 'Oxidation & deposition bay', bay: true, cost: 60000000, brief: [
       { h: 'Growing a film from the wafer itself', p: 'Heat silicon in oxygen (dry) or steam (wet) and SiO₂ grows into and out of the surface, consuming 0.44 nm of silicon per nm of oxide. Deal–Grove: thin oxide grows linearly (reaction-limited), thick oxide as √t (diffusion-limited), so doubling the thickness takes four times as long.', fig: 'm06/1-thermal-oxidation-growing-sio2-from-the-wafer-itself' },
       { h: 'Depositing films one atom layer at a time', p: 'CVD reacts gases on the wafer; PVD sputters atoms from a target; ALD alternates two self-limiting half-reactions (precursor pulse, purge, water pulse, purge) so each cycle adds a fixed ~0.1 nm, about a third of a monolayer; ~20 cycles make the 1.8 nm hafnium-oxide gate dielectric, uniform across 300 mm because the thickness is counted, not timed.', fig: 'm06/5-atomic-layer-deposition' }
     ],
@@ -86,7 +86,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'deal-grove' }, { widget: 'ald-cycle' }], certify: { modules: [6], n: 2 }
   },
   'bay-litho': {
-    title: 'Lithography bay', bay: true, cost: 30000000, brief: [
+    title: 'Lithography bay', bay: true, cost: 150000000, brief: [
       { h: 'Resolution is wavelength over aperture', p: 'Half-pitch = k1·λ/NA. For 193 nm immersion (NA 1.35, k1 ≈ 0.28) that is ~40 nm half-pitch, ~80 nm pitch. Depth of focus falls as 1/NA², which is why the wafer must be flat to tens of nanometres.', fig: 'm07/anatomy-of-a-193-nm-immersion-scanner' },
       { h: 'Stretching DUV: multi-patterning', p: 'Below 80 nm pitch, one layer becomes two exposures (LELE) or a spacer trick: pattern a mandrel, coat it with a conformal film, etch back, pull the mandrel and the spacers remain at half the pitch (SADP); do it twice for a quarter (SAQP). Each trick adds steps, overlay error and cost.' },
       { h: 'EUV: 13.5 nm light in a vacuum', p: 'A CO₂ laser hits 50,000 tin droplets a second to make plasma that emits 13.5 nm light. Nothing is transparent at that wavelength, so the optics are Mo/Si multilayer mirrors, the mask is reflective, and the whole path is vacuum. Only ~1–2% of the source\'s light survives the mirror bounces to the wafer, which is why source power (250 W in 2017, 500–600 W now) sets both the throughput of a ~$200M scanner and how many photons each contact hole gets.', fig: 'm08/the-laser-produced-plasma-source' },
@@ -96,7 +96,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'rayleigh' }, { widget: 'sadp' }, { widget: 'euv-source' }, { widget: 'resist-chemistry' }], certify: { modules: [7, 8], n: 2 }
   },
   'bay-etch': {
-    title: 'Etch bay', bay: true, cost: 15000000, brief: [
+    title: 'Etch bay', bay: true, cost: 75000000, brief: [
       { h: 'Carving with a plasma', p: 'A plasma splits gas into ions and radicals. Radicals etch chemically in every direction; ions arrive vertically and etch by impact. Balance them, add a sidewall passivation film, and the trench walls stay vertical (anisotropy) while the mask survives (selectivity).', fig: 'm09/plasma-physics-for-engineers' },
       { h: 'Pressure decides whether ions fly straight', p: 'Ions cross the sheath above the wafer; at high pressure they collide with neutrals on the way and arrive at an angle, rounding the profile. Low pressure and high bias give straight, energetic ions; that is the recipe for deep, narrow holes such as 3D NAND channels with 100:1 aspect ratios.' }
     ],
@@ -104,7 +104,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'plasma-reactor' }, { widget: 'etch-profile' }], certify: { modules: [9], n: 2 }
   },
   'bay-implant': {
-    title: 'Implant & anneal bay', bay: true, cost: 15000000, brief: [
+    title: 'Implant & anneal bay', bay: true, cost: 75000000, brief: [
       { h: 'Shooting dopants into the crystal', p: 'Ions are extracted from a plasma source, sorted by mass in an analyser magnet (so a boron beam contains only boron), accelerated to the chosen energy and scanned across the wafer. Energy sets the depth (projected range), dose sets how many.', fig: 'm10/3-inside-an-ion-implanter' },
       { h: 'Then repair the damage', p: 'Every implanted ion knocks silicon atoms out of place. An anneal (furnace, rapid thermal, spike, laser) repairs the lattice and moves dopants onto lattice sites where they are electrically active, but heat also lets them diffuse, so shallow junctions need the shortest, hottest anneals.' },
       { h: 'Transient enhanced diffusion', p: 'Implant damage makes dopants diffuse 10³–10⁴× faster than the textbook rate while it heals, turning a 1.6 nm wander into ~50 nm in a slow, cool anneal. The spike anneal (1,050 °C for under a second) races through that window; a 1 s spike moves boron only ~2.4 nm.' }
@@ -113,7 +113,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'implanter-beamline' }, { widget: 'implant-profile' }], certify: { modules: [10], n: 2 }
   },
   'bay-feol': {
-    title: 'Transistor bay (FEOL & MOL)', bay: true, cost: 30000000, brief: [
+    title: 'Transistor bay (FEOL & MOL)', bay: true, cost: 150000000, brief: [
       { h: 'A switch controlled by a field', p: 'A MOSFET conducts when the gate voltage inverts the channel. Current rises ten-fold for every ~60–70 mV of gate swing below threshold (the subthreshold swing), so a logic transistor needs about six decades of Ion/Ioff and the gate must control the channel completely.' },
       { h: 'Planar → FinFET → nanosheet → CFET', p: 'As gates shrank, the drain started to control the channel too (short-channel effects). The fix was geometry: wrap the gate around a fin (three sides), then around stacked sheets (four sides), and eventually stack n and p devices vertically. The real gate is built last, after the 1,000 °C anneals, in place of a dummy.' },
       { h: 'Contacts', p: 'Middle-of-line contacts are the narrowest conductors on the chip; a titanium silicide and a tungsten, cobalt or ruthenium plug connect each source, drain and gate to the first wiring level.' }
@@ -122,7 +122,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'mosfet-iv' }, { widget: 'transistor-evolution' }], certify: { modules: [11], n: 2 }
   },
   'bay-beol': {
-    title: 'Interconnect bay (BEOL)', bay: true, cost: 20000000, brief: [
+    title: 'Interconnect bay (BEOL)', bay: true, cost: 100000000, brief: [
       { h: 'Copper cannot be etched', p: 'So the wiring is inlaid: etch a trench and a via into the dielectric, line them with a TaN barrier and a cobalt or ruthenium liner, seed and electroplate copper with superfill additives, then polish the excess away (CMP). Fifteen to eighteen levels, narrowest at the bottom, thick power grid on top.', fig: 'm12/anatomy-of-the-metal-stack' },
       { h: 'The wire is now the slow part', p: 'In a 20 nm line the barrier and liner take a third of the width and electrons scatter off every wall, so resistivity is several times bulk copper; RC delay of the tightest wires, not the transistor, limits most paths. Hence low-k dielectrics, air gaps, and backside power delivery.' }
     ],
@@ -130,7 +130,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'damascene' }, { widget: 'cmp-planarize' }], certify: { modules: [12], n: 2 }
   },
   'bay-metro': {
-    title: 'Metrology & yield bay', bay: true, optional: true, cost: 12000000, brief: [
+    title: 'Metrology & yield bay', bay: true, optional: true, cost: 60000000, brief: [
       { h: 'Measure without touching', p: 'Every litho loop is measured before etch because a bad resist pattern can be stripped and redone for the cost of a coat, while a bad etch scraps the wafer. Thickness comes from polarized light (ellipsometry), line width and profile from diffraction (scatterometry) or a low-energy SEM, and alignment from overlay targets; the metrology itself must stay well under a ~2 nm overlay budget. Inspection finds defects, and every excursion is traced back through the tool data.', fig: 'm13/1-film-metrology-measuring-thickness-without-touching' },
       { h: 'Yield is area times defect density', p: 'Poisson: Y = e^(−A·D0). An 800 mm² die at D0 = 0.1/cm² yields ~45%; a 100 mm² die ~90%. D0 starts several times higher on a new node and falls only as wafers are run and each defect mechanism is removed, one at a time.', fig: 'm13/8-spc-apc-fdc-and-the-excursion' }
     ],
@@ -182,7 +182,7 @@ SG.MISSIONS = {
     commission: [{ widget: 'heat-path' }, { widget: 'nvlink-topology' }, { widget: 'rack-explorer' }], certify: { modules: [19, 20], n: 2 }
   },
   'node-n3': {
-    title: 'Migrate the fab to N3', node: true, cost: 2000000000, brief: [
+    title: 'Migrate the fab to N3', node: true, cost: 10000000000, brief: [
       { h: 'What a node name means', p: '"3 nm" is a label, not a measurement. The real numbers are contacted poly pitch (~45–50 nm), metal pitch (~23–30 nm), cell height in tracks and the resulting transistor density (~200–215 MTr/mm² at N3E, of which real chips use 50–70%). Density gain per node has fallen to ~1.15–1.3×.', fig: 'm11/8-node-timeline-sram-and-design-co-optimization' },
       { h: 'A new node resets the learning curve', p: 'D0 starts several times higher than on the mature node and comes down only with wafers run. The wafer sells for more (~$18–20k at N3, ~$30k at N2) and takes more EUV layers (20+ at N3, 25+ at N2), so opex rises too. Whether the migration pays depends on your yield learning rate.' },
       { h: 'SRAM stopped shrinking', p: 'Logic keeps scaling; the SRAM bit cell barely has since N5 (0.021 µm² on N2). A die that is half cache scales worse than the library number, which is why SRAM-heavy dies gain less per node than the library number suggests, and why big caches are increasingly built on separate dies.' }
@@ -192,7 +192,7 @@ SG.MISSIONS = {
     effect: { node: 'N3', waferPrice: 19000, opex: 10000, density: 1.35 }
   },
   'node-n2': {
-    title: 'Migrate the fab to N2', node: true, cost: 5000000000, brief: [
+    title: 'Migrate the fab to N2', node: true, cost: 25000000000, brief: [
       { h: 'Nanosheets and backside power', p: 'N2 replaces fins with stacked nanosheets so the gate wraps the channel on all four sides; A16 adds backside power delivery so the crowded front-side metal carries only signals. Wafer price ~$30k; a good 800 mm² die costs ~$1,000 at 45% yield.', fig: 'm11/8-node-timeline-sram-and-design-co-optimization' },
       { h: 'High-NA on the horizon', p: 'The EXE:5000/5200 raises NA to 0.55 with anamorphic optics and half the field size, ~16 nm pitch in a single exposure, at ~$380M a tool. Depth of focus shrinks with NA², so wafers must be flatter still.' },
       { h: 'Cost per transistor stopped falling', p: 'N5 → N3E: wafer price ×1.15, density ×1.5, cost per transistor down ~25%. N3E → N2: price ×1.58, density ×1.16, cost per transistor up ~30–35% on the course\'s list-price estimates. Migrate for performance, power and density, not for cheaper transistors; that is why only products with billions in revenue use the leading node.' }

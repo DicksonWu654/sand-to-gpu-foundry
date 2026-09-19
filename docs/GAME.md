@@ -44,6 +44,10 @@ One game second is one day. Each station runs `rate × level` cycles per day, co
 
 Formulas used by the simulation (all from Module 13 and Module 21's glossary): dies per wafer `π(d/2)²/A − πd/√(2A)`; Poisson, Murphy and negative-binomial yield; yield learning `D0 = 0.05 + 0.45·exp(−wafers run / 20,000)` minus bonuses, floored at 0.03; HBM stack yield `(1 − escape)^(n+1) × bond^n`; burn-in escapes `exp(−h·78/700)`; Rayleigh `2·k1·λ/NA`; Deal–Grove; Little's law for earthquake scrap.
 
+## Economy rules
+
+Warehouse caps are 30 days of live downstream consumption (90 with the inventory mitigation), never less than two days of output, so building a consumer never causes an income cliff. Surplus beyond the cap sells at market price. Cards show net $/day, a "dumping X% on the spot market" flag when most of the output is bypassing the next station, and the payback of the next level on the upgrade button. The fab runs before all six bays are commissioned, paying a $2,500-per-wafer outsourcing fee for each missing process bay. Contract offers (three days of your end product within eight days at +30%, 20% penalty on the shortfall) replace rush orders. Quiz grants are 0.25% of the current objective's cost and, like the knowledge multiplier, count only first-try answers. Offline progress is capped at 60 game days. Capex is scaled ×5 from the first version so each save phase is 30–90 s of floor time; the HBM plant's opex is 30 × the stack cost chosen in the HBM Stacker lab.
+
 ## The fun layer (idle-game mechanics)
 
 - **Manual shifts.** Click a station's icon to run 10% of a day's output instantly, limited by inputs and warehouse room. Floating "+n units" and "+$" texts show what happened.

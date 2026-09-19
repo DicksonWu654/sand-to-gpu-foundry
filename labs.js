@@ -339,7 +339,7 @@ SG.LABS.hbm = {
         </table>`;
       commit.disabled = false;
       commit.onclick = () => {
-        S.labs.hbm = { height, escape: t.escape, bond: b.bond, bondName: b.name, testName: t.name, yield: Y };
+        S.labs.hbm = { height, escape: t.escape, bond: b.bond, bondName: b.name, testName: t.name, yield: Y, stackCost };
         log(`HBM line: ${height}-high, ${t.name}, ${b.name}; stack yield ${pct(Y)}.`, 'lab'); toast('HBM line configured', `${height}-high at ${pct(Y)} stack yield, ${gb} GB per stack.`);
         if (SG.engine) SG.engine.buildChain(); save(); ctx.closeModal();
       };

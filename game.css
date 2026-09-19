@@ -354,3 +354,23 @@ table.litho select { max-width: 200px; }
   .station { width: min(262px, 84vw); } .objective { margin: 12px 12px 0; flex-wrap: wrap; } .obj-text { white-space: normal; } main { padding: 12px; }
   .toasts { left: 12px; right: 12px; max-width: none; }
 }
+
+/* ---------- round-4 finish ---------- */
+.st-msg { display: block; }
+.st-msg > span { display: inline-flex; align-items: center; gap: 6px; }
+.st-msg .small { display: block; margin-top: 3px; }
+.station.locked .ring { width: 40px; height: 40px; right: 10px; top: 10px; }
+.station.locked .ring svg { display: none; }
+.st-art .glyph { transform: scale(1.45); }
+.tile.cash .tile-s { font-size: 12.5px; color: var(--ok); font-weight: 600; }
+.tile.cash .tile-s.neg { color: var(--bad); }
+.belt.kick .belt-track::after { animation-duration: calc(var(--dur, 2s) * .35); filter: drop-shadow(0 0 6px var(--c)) brightness(1.4); }
+.floor .chev { position: absolute; z-index: 2; color: var(--accent); font-size: 22px; font-weight: 700; line-height: 1; text-shadow: 0 0 8px rgba(98, 177, 224, .8); pointer-events: none; }
+.floor svg.route { display: none; }
+.ticker { display: flex; gap: 14px; align-items: center; min-width: 0; overflow: hidden; margin-right: 12px; }
+.tick { font-size: 12px; color: var(--ok); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; animation: tickIn .4s ease-out; }
+.tick.gold { color: var(--gold); }
+@keyframes tickIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (min-width: 701px) { .toasts { display: none; } }
+#contract-line { margin-top: 2px; font-family: var(--mono); font-size: 11.5px; }
+@media (max-width: 700px) { .drawer-head .label { display: none; } .side-tabs { overflow-x: auto; flex: 1; } .ticker { display: none; } }

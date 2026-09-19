@@ -27,7 +27,7 @@
     for (const s of SG.STATIONS) st[s.id] = { on: !!s.startUnlocked, level: 1 };
     const res = {}; for (const r of Object.keys(SG.RES)) res[r] = 0;
     return {
-      v: 1, day: 0, cash: 300000, res, st, design: null, wafersRun: 0,
+      v: 1, day: 0, cash: 60000, res, st, design: null, wafersRun: 0, contract: null, missed: {},
       labs: {}, puzzles: {}, mitig: {}, events: [], log: [], milestones: {}, answered: {}, made: {},
       bays: {}, node: 'N5', nodeFx: { waferPrice: 16000, opex: 8000, density: 1 }, bonus: { thr: {}, d0: 0 }, missions: {},
       ach: {}, achMult: 0, lastSeen: Date.now(), nextRush: null,
@@ -77,7 +77,7 @@
   function hbmStackYield(c) { return Math.pow(1 - c.escape, c.height + 1) * Math.pow(c.bond, c.height); }
   function hbmGB(c) { return 3 * c.height; }
   function gpuPrice(d) { d = d || S.design; if (!d) return 0; return 3000 + 14 * d.A * d.n * ((S.nodeFx && S.nodeFx.density) || 1) + 25 * d.h * hbmGB(hbmConfig()); }
-  function knowledgeMult() { return 1 + 0.005 * Object.keys(S.answered).length; }
+  function knowledgeMult() { return 1 + 0.005 * Object.values(S.answered).filter(v => v === true).length; }
   function revMult() { return (1 + (S.achMult || 0)) * knowledgeMult(); }
   function priceOf(r) {
     let p = SG.RES[r].price;
@@ -106,6 +106,8 @@
     let o = s.opex;
     if (s.id === 'fab' && S.nodeFx) o = S.nodeFx.opex;
     if (s.id === 'fab' && S.labs.litho) o *= S.labs.litho.opexMult;
+    if (s.id === 'fab') o += outsourceFee();
+    if (s.id === 'hbm' && S.labs.hbm && S.labs.hbm.stackCost) o = 30 * S.labs.hbm.stackCost;
     if (s.id === 'test' && S.labs.test) o = S.labs.test.costPerUnit;
     if (s.id === 'systems') o += fieldFail() * 72 * 100000;
     return o;
@@ -127,17 +129,25 @@
     if (s.id === 'fab') c *= 1 + 0.1 * OPTIONAL_BAYS.filter(b => S.bays[b]).length;
     return c;
   }
+  function valueAdd(s) { let v = 0; for (const [r, q] of Object.entries(s.outputs)) v += resolveQty(q) * priceOf(r); for (const [r, q] of Object.entries(s.inputs)) v -= resolveQty(q) * priceOf(r); return v - stationOpex(s); }
+  function netPerDay(s) { const f = flow[s.id]; return f ? f.rate * valueAdd(s) : 0; }
+  function paybackDays(s) { const perLevel = capacity(s) / Math.max(1, S.st[s.id].level) * valueAdd(s); return perLevel > 0 ? upgradeCost(s) / perLevel : Infinity; }
   function upgradeCost(s) { return Math.round((s.cost || 40000) * 0.5 * Math.pow(1.45, S.st[s.id].level - 1)); }
   function producerOf(r) { return SG.STATIONS.find(s => s.outputs[r] !== undefined); }
   function consumersOf(r) { return SG.STATIONS.filter(s => s.inputs[r] !== undefined); }
+  // 30 days of live downstream consumption (90 with the inventory mitigation), never less than 2 days of output
   function warehouseCap(r) {
     const p = producerOf(r); if (!p) return Infinity;
-    return capacity(p) * resolveQty(p.outputs[r]) * 30 * (S.mitig.stockpile ? 3 : 1);
+    const out = capacity(p) * resolveQty(p.outputs[r]);
+    let demand = 0; for (const c of consumersOf(r)) if (S.st[c.id].on && c.rate > 0 && !blocked(c)) demand += capacity(c) * resolveQty(c.inputs[r]);
+    return Math.max(demand * 30 * (S.mitig.stockpile ? 3 : 1), out * 2);
   }
-  function blocked(s) { return (s.needsDesign && !S.design) ? 'a mask set (open the Design Studio)' : (s.id === 'fab' && !baysReady()) ? baysMissing().length + ' uncommissioned bay' + (baysMissing().length > 1 ? 's' : '') + ' (open the Fab floor)' : null; }
+  function blocked(s) { return (s.needsDesign && !S.design) ? 'a mask set (open the Design Studio)' : null; }
+  const OUTSOURCE_FEE = 2500; // per wafer per missing process bay: the steps are bought from another fab
+  function outsourceFee() { return baysMissing().length * OUTSOURCE_FEE; }
 
   // ---------- simulation ----------
-  const flow = {}; const soldTick = {};
+  const flow = {}; const soldTick = {}; const dump = {}; const producedTick = {};
   let incomeWindow = []; let simulating = false;
   // Run up to `cap` cycles of station s, limited by inputs and output warehouse. Returns cycles run.
   function produce(s, cap, respectWarehouse) {
@@ -154,7 +164,7 @@
     cycles = Math.max(0, cycles);
     if (cycles > 0) {
       for (const [r, q] of Object.entries(s.inputs)) S.res[r] -= resolveQty(q) * cycles;
-      for (const [r, q] of Object.entries(s.outputs)) { const made = resolveQty(q) * cycles; S.res[r] += made; S.made[r] = (S.made[r] || 0) + made; if (S.made[r] >= 1) checkMilestone(r); }
+      for (const [r, q] of Object.entries(s.outputs)) { const made = resolveQty(q) * cycles; S.res[r] += made; S.made[r] = (S.made[r] || 0) + made; producedTick[r] = (producedTick[r] || 0) + made; if (S.made[r] >= 1) checkMilestone(r); }
       S.cash -= stationOpex(s) * cycles;
       if (s.id === 'fab') S.wafersRun += cycles;
     }
@@ -177,11 +187,18 @@
       let qty = 0;
       if (policy === 'all' || (policy === 'auto' && !hasConsumer)) qty = S.res[r];
       else if (policy === 'auto') { const cap = warehouseCap(r); if (S.res[r] > cap) qty = S.res[r] - cap; }
-      if (qty > 1e-9) { S.res[r] -= qty; const rev = qty * priceOf(r) * revMult(); S.cash += rev; S.stats.revenue += rev; S.stats.sold[r] = (S.stats.sold[r] || 0) + qty; soldTick[r] = (soldTick[r] || 0) + rev; }
+      if (qty > 1e-9) {
+        S.res[r] -= qty; let rev = 0;
+        const c = S.contract; if (c && c.r === r && c.delivered < c.n) { const d = Math.min(qty, c.n - c.delivered); c.delivered += d; rev += d * c.price * revMult(); qty -= d; if (c.delivered >= c.n) completeContract(); }
+        rev += qty * priceOf(r) * revMult(); S.cash += rev; S.stats.revenue += rev; S.stats.sold[r] = (S.stats.sold[r] || 0) + qty; soldTick[r] = (soldTick[r] || 0) + rev;
+        if (hasConsumer && producedTick[r] > 0) dump[r] = 0.9 * (dump[r] || 0) + 0.1 * Math.min(1, qty / producedTick[r]);
+      } else if (hasConsumer && producedTick[r] > 0) dump[r] = 0.9 * (dump[r] || 0);
+      producedTick[r] = 0;
     }
+    if (S.contract && S.day >= S.contract.deadline) failContract();
     for (const ev of S.events.slice()) if (S.day >= ev.endsDay) { S.events.splice(S.events.indexOf(ev), 1); log('Event over: ' + SG.EVENTS.find(e => e.id === ev.id).title, 'muted'); }
     if (!simulating && S.st.fab.on && (!S.nextEvent || S.day >= S.nextEvent)) { if (S.nextEvent) fireEvent(); S.nextEvent = S.day + 120 + Math.random() * 120; }
-    if (!simulating && S.st.furnace.on && (!S.nextRush || S.day >= S.nextRush)) { if (S.nextRush) spawnRush(); S.nextRush = S.day + 60 + Math.random() * 90; }
+    if (!simulating && S.st.furnace.on && !S.contract && (!S.nextRush || S.day >= S.nextRush)) { if (S.nextRush) spawnRush(); S.nextRush = S.day + 60 + Math.random() * 90; }
     incomeWindow.push({ d: dt, c: S.cash - cashBefore });
     while (incomeWindow.length > 100) incomeWindow.shift();
     const totD = incomeWindow.reduce((a, x) => a + x.d, 0);
@@ -230,23 +247,38 @@
         (SG.EVENT_WIDGETS && SG.EVENT_WIDGETS[e.id] && SG.missions) ? el('button', { class: 'btn', onclick: () => SG.missions.explore(null, missionCtx, { title: e.title + ': the interactive behind it', widgets: [SG.EVENT_WIDGETS[e.id]], modules: [] }) }, '🧭 Open the interactive') : null)
     ));
   }
-  // rush orders: the golden cookie
+  // contracts: a customer wants N of your end product by a deadline at +30%; a shortfall costs 20% of the missing value
+  function endProduct() { let last = null; for (const id of ORDER) { const s = byId[id]; if (S.st[id].on && s.rate > 0 && !blocked(s)) last = s; } if (!last) return null; const r = Object.keys(last.outputs)[0]; return { s: last, r }; }
   function spawnRush() {
-    if ($('.rush')) return;
-    const r = SG.RUSH[Math.floor(Math.random() * SG.RUSH.length)];
-    const value = Math.max(25000, S.income * r.days);
-    const btn = el('button', { class: 'rush', style: `left:${10 + Math.random() * 70}%; top:${20 + Math.random() * 50}%` }, el('b', null, ic('coin'), 'Rush order'), el('span', null, r.title + ' · ' + fmt$(value)));
-    const timer = setTimeout(() => btn.remove(), 14000);
-    btn.addEventListener('click', () => { clearTimeout(timer); btn.remove(); S.cash += value; S.stats.rush = (S.stats.rush || 0) + 1; log(`Rush order collected: ${r.title} (+${fmt$(value)})`, 'ach'); toast('💰 ' + r.title + ' +' + fmt$(value), r.text); floatText(btn, '+' + fmt$(value), 'gold'); });
+    if ($('.rush') || S.contract) return;
+    const ep = endProduct(); if (!ep) return;
+    const perDay = capacity(ep.s) * resolveQty(ep.s.outputs[ep.r]); if (!(perDay > 0)) return;
+    const c = SG.CONTRACTS[Math.floor(Math.random() * SG.CONTRACTS.length)];
+    const n = Math.max(1, Math.round(perDay * 3)); const days = 8; const price = priceOf(ep.r) * 1.3;
+    const btn = el('button', { class: 'rush', style: `left:${10 + Math.random() * 70}%; top:${20 + Math.random() * 50}%` }, el('b', null, ic('flag'), 'Contract offer'), el('span', null, `${c.title}: ${fmtN(n)} ${SG.RES_SHORT[ep.r] || ep.r} in ${days} days at +30%`));
+    const timer = setTimeout(() => btn.remove(), 16000);
+    btn.addEventListener('click', () => {
+      clearTimeout(timer); btn.remove();
+      modal(el('div', null, el('div', { class: 'tag' }, 'CONTRACT OFFER · day ' + Math.floor(S.day)), el('h2', null, c.title),
+        el('p', null, `Deliver ${fmtN(n)} ${SG.RES[ep.r].name}${n > 1 ? 's' : ''} within ${days} days (by day ${Math.floor(S.day) + days}) at ${fmt$(price)} each, 30% above market: ${fmt$(n * price)} in total. Miss the deadline and you owe 20% of the undelivered value. Your line makes ~${fmtN(perDay)} a day, so this is about three days of output with eight to do it.`),
+        el('p', { class: 'muted' }, c.text),
+        el('div', { class: 'mission-nav' }, el('button', { class: 'btn primary', onclick: () => { S.contract = { r: ep.r, n, delivered: 0, deadline: S.day + days, price, title: c.title }; log(`Contract accepted: ${fmtN(n)} ${SG.RES[ep.r].name} by day ${Math.floor(S.contract.deadline)} at +30%.`, 'ach'); closeModal(); } }, 'Accept'), el('button', { class: 'btn', onclick: closeModal }, 'Decline'))));
+    });
     document.body.append(btn);
   }
+  function completeContract() { const c = S.contract; if (!c) return; S.contract = null; S.stats.rush = (S.stats.rush || 0) + 1; log(`Contract delivered in full: ${c.title}, ${fmtN(c.n)} ${SG.RES[c.r].name} at +30%.`, 'ach'); if (!simulating) toast('💰 Contract delivered', `${c.title}: ${fmtN(c.n)} ${SG.RES[c.r].name} on time. +30% on every unit.`); }
+  function failContract() { const c = S.contract; if (!c) return; S.contract = null; const short = c.n - c.delivered; const penalty = 0.2 * short * c.price; S.cash -= penalty; log(`Contract missed: ${c.title}, ${fmtN(short)} ${SG.RES[c.r].name} short. Penalty ${fmt$(penalty)}.`, 'event'); if (!simulating) toast('⚠ Contract missed', `${fmtN(short)} ${SG.RES[c.r].name} short of ${fmtN(c.n)}: penalty ${fmt$(penalty)}. Capacity you promise has to exist when the date arrives.`); }
   // manual shift: click a station to run cycles now
   function manualShift(s, iconEl) {
     if (!S.st[s.id].on || s.rate === 0) return;
     if (blocked(s)) { floatText(iconEl, 'blocked', 'bad'); return; }
     const r = produce(s, capacity(s) * 0.1, true);
     S.stats.clicks = (S.stats.clicks || 0) + 1;
-    if (r.cycles > 0.01) { const out = Object.entries(s.outputs)[0]; floatText(iconEl, '+' + fmtN(resolveQty(out[1]) * r.cycles) + ' ' + SG.RES[out[0]].unit, 'ok'); iconEl.classList.remove('pulse'); void iconEl.offsetWidth; iconEl.classList.add('pulse'); }
+    if (r.cycles > 0.01) {
+      const out = Object.entries(s.outputs)[0]; floatText(iconEl, '+' + fmtN(resolveQty(out[1]) * r.cycles) + ' ' + SG.RES[out[0]].unit, 'ok');
+      iconEl.classList.remove('pulse'); void iconEl.offsetWidth; iconEl.classList.add('pulse');
+      const belt = belts[s.id]; if (belt) { belt.classList.add('kick'); clearTimeout(belt._kick); belt._kick = setTimeout(() => belt.classList.remove('kick'), 450); }
+    }
     else floatText(iconEl, r.starved ? 'no ' + r.starved : 'warehouse full', 'bad');
   }
 
@@ -266,15 +298,18 @@
   }
   function closeModal() { const r = modalRoot(); r.classList.remove('open'); r.innerHTML = ''; document.body.classList.remove('modal-open'); if (SG.onModalClose) { const f = SG.onModalClose; SG.onModalClose = null; f(); } }
   function toast(title, text) {
-    const t = el('div', { class: 'toast' + (/^[🏆💰⬆]/.test(title) ? ' gold' : '') }, el('b', null, title), el('div', null, text));
+    const gold = /^[🏆💰⬆]/.test(title);
+    const t = el('div', { class: 'toast' + (gold ? ' gold' : '') }, el('b', null, title), el('div', null, text));
     const host = $('#toasts'); while (host.children.length >= 2) host.firstChild.remove();
     host.append(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 4500);
+    // desktop: a one-line ticker in the control-room header instead of floating cards
+    const tk = $('#ticker'); if (tk) { const item = el('span', { class: 'tick' + (gold ? ' gold' : ''), title: text }, title); tk.prepend(item); while (tk.children.length > 2) tk.lastChild.remove(); }
   }
   function floatText(anchor, text, cls) {
     const r = anchor.getBoundingClientRect();
     if (r.width === 0 || r.right < 0 || r.left > innerWidth || r.bottom < 0 || r.top > innerHeight) return; // off-screen: no floater
     const x = Math.max(40, Math.min(innerWidth - 40, r.left + r.width / 2 + (Math.random() - 0.5) * 30));
-    const f = el('div', { class: 'floater ' + (cls || ''), style: `left:${x}px; top:${Math.max(70, r.top + 10)}px` }, text);
+    const f = el('div', { class: 'floater ' + (cls || ''), style: `left:${x}px; top:${Math.max(130, r.top + 28)}px` }, text);
     document.body.append(f); setTimeout(() => f.remove(), 1300);
   }
 
@@ -301,8 +336,9 @@
         el('p', { class: 'muted small' }, 'Read the chapter: ', el('a', { href: SG.courseLink(item.m), target: '_blank' }, 'open Module ' + String(item.m).padStart(2, '0')))
       );
       function answer(idx) {
-        const ok = idx === q.answer; const key = item.m + ':' + item.i; const first = !S.answered[key];
-        if (ok) { correct++; S.answered[key] = true; if (first && reward) { const g = reward(); S.cash += g; toast('Research grant +' + fmt$(g), `First-time correct answer. Knowledge multiplier is now ×${knowledgeMult().toFixed(3)}.`); } }
+        const ok = idx === q.answer; const key = item.m + ':' + item.i; const first = !S.answered[key]; const firstTry = !S.missed[key];
+        if (!ok) S.missed[key] = true;
+        if (ok) { correct++; if (first) S.answered[key] = firstTry ? true : 'retry'; if (first && firstTry && reward) { const g = reward(); S.cash += g; toast('Research grant +' + fmt$(g), `Right first time. Knowledge multiplier is now ×${knowledgeMult().toFixed(3)}.`); } else if (first && !firstTry) toast('Answered', 'Correct on a retry: no grant, and it does not count toward the knowledge multiplier. First tries do.'); }
         body.querySelector('.quiz-head .muted').textContent = `${correct}/${n} correct · Module ${String(item.m).padStart(2, '0')}: ${modName(item.m)}`;
         body.querySelectorAll('.opt').forEach((b, i) => { b.disabled = true; if (i === q.answer) b.classList.add('right'); else if (i === idx) b.classList.add('wrong'); });
         body.append(el('div', { class: 'explain ' + (ok ? 'ok' : 'bad') }, el('b', null, ok ? 'Correct. ' : 'Not quite. '), q.explanation),
@@ -312,7 +348,8 @@
     }
     ask();
   }
-  function grantAmount() { return Math.max(50000, Math.min(20e6, S.income * 3)); }
+  function objectiveCost() { if (!S.st.mine.on) return 4e6; if (S.st.fab.on && !baysReady()) { const next = REQUIRED_BAYS.find(b => !S.bays[b]); return SG.MISSIONS[next].cost; } const nextLocked = SG.STATIONS.find(s => !S.st[s.id].on); if (nextLocked) return Math.max(4e6, nextLocked.cost); if (S.node !== 'N2') return SG.MISSIONS[S.node === 'N5' ? 'node-n3' : 'node-n2'].cost; return 2e9; }
+  function grantAmount() { return Math.max(10000, 0.0025 * objectiveCost()); }
 
   // ---------- missions and actions ----------
   const missionCtx = { modal, closeModal, quizGate, grantAmount };
@@ -429,12 +466,18 @@
           : el('button', { class: 'btn primary small', disabled: S.cash < M.cost ? '' : null, onclick: () => { if (S.cash < M.cost) return; runMission(id, results => { S.cash -= M.cost; S.stats.capex += M.cost; S.bays[id] = true; applyMissionBonus('fab', results, true); log('Commissioned ' + M.title + ' for ' + fmt$(M.cost), 'build'); toast('✅ Bay commissioned', M.title); buildChain(); save(); openFabFloor(); }); } }, 'Commission · ' + fmt$(M.cost)));
       floor.append(tile);
     });
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'route'); floor.append(svg);
+    // chevrons in the gutters mark the wafer's route through the six process bays
     requestAnimationFrame(() => {
       const fr = floor.getBoundingClientRect(); if (!fr.width) return;
-      const pts = REQUIRED_BAYS.map(id => floor.querySelector('.bay-tile[data-bay="' + id + '"]')).filter(Boolean).map(t => { const r = t.getBoundingClientRect(); return [r.left - fr.left + r.width / 2, r.top - fr.top + r.height / 2]; });
-      svg.setAttribute('viewBox', `0 0 ${fr.width} ${fr.height}`);
-      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ')); svg.append(p);
+      const tiles = REQUIRED_BAYS.map(id => floor.querySelector('.bay-tile[data-bay="' + id + '"]')).filter(Boolean);
+      for (let i = 0; i < tiles.length - 1; i++) {
+        const a = tiles[i].getBoundingClientRect(), b = tiles[i + 1].getBoundingClientRect();
+        const sameRow = Math.abs(a.top - b.top) < 4;
+        const x = sameRow ? (Math.max(a.right, b.right) + Math.min(a.left, b.left)) / 2 : a.left + a.width / 2;
+        const y = sameRow ? a.top + a.height / 2 : (a.bottom + b.top) / 2;
+        const dir = sameRow ? (b.left > a.left ? 0 : 180) : 90;
+        floor.append(el('span', { class: 'chev', style: `left:${(x - fr.left).toFixed(1)}px; top:${(y - fr.top).toFixed(1)}px; transform: translate(-50%,-50%) rotate(${dir}deg)` }, '›'));
+      }
     });
     modal(el('div', null, el('div', { class: 'tag' }, 'FAB FLOOR · Modules 05–13'), el('h2', null, 'The eight bays'),
       el('p', null, `A fab is a floor of tool bays that every wafer visits dozens of times; the dashed route is the wafer's path through the six process bays. They must all be commissioned before the first wafer moves (${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6 done). Each bay is its own mission; targets reached in the bays lower your killer-defect density permanently.`),
@@ -469,12 +512,12 @@
   function offlineProgress() {
     const away = (Date.now() - (S.lastSeen || Date.now())) / 1000;
     if (away < 60 || !S.st.furnace.on) return;
-    const days = Math.min(600, Math.floor(away)) ; const before = S.cash;
-    simulating = true; for (let i = 0; i < days; i++) tick(0.5); simulating = false; // half speed while away
+    const days = Math.min(60, Math.floor(away / 2)); const before = S.cash;
+    simulating = true; for (let i = 0; i < days * 2; i++) tick(0.5); simulating = false;
     const gained = S.cash - before;
-    log(`While you were away (${Math.round(away / 60)} min): the chain ran ${days / 2} days at half speed, ${gained >= 0 ? 'earning ' + fmt$(gained) : 'losing ' + fmt$(-gained)}.`, 'ach');
+    log(`While you were away (${Math.round(away / 60)} min): the chain ran ${days} days, ${gained >= 0 ? 'earning ' + fmt$(gained) : 'losing ' + fmt$(-gained)}.`, 'ach');
     modal(el('div', null, el('div', { class: 'tag' }, 'WHILE YOU WERE AWAY'), el('h2', null, gained >= 0 ? '+' + fmt$(gained) : fmt$(gained)),
-      el('p', null, `Your chain kept running at half speed for ${days / 2} game days (up to 300 days per absence). Warehouses that filled up sold surplus on the spot market.`),
+      el('p', null, `Your chain kept running for ${days} game days (one day for every two seconds away, up to 60 days per absence). Warehouses that filled up sold surplus at market price.`),
       el('button', { class: 'btn primary', onclick: closeModal }, 'Back to work')));
   }
 
@@ -483,9 +526,10 @@
     if (!S.st.mine.on) return { text: 'Commission the quartz mine (free). It is the tutorial.', pct: 0 };
     const nextLocked = SG.STATIONS.find(s => !S.st[s.id].on);
     const sub = cost => `${fmt$(Math.min(S.cash, cost))} / ${fmt$(cost)}`;
-    if (S.st.fab.on && !baysReady()) { const done = REQUIRED_BAYS.filter(b => S.bays[b]).length; const next = REQUIRED_BAYS.find(b => !S.bays[b]); const M = SG.MISSIONS[next]; return { text: `${M.title} · ${fmt$(M.cost)} — fab bays ${done}/6 commissioned.`, pct: Math.min(1, S.cash / M.cost), sub: sub(M.cost) }; }
+    if (S.st.mine.on && !S.st.furnace.on && S.cash < byId.furnace.cost) return { text: `Arc Furnace · ${fmt$(byId.furnace.cost)} — sell quartz, or click the mine to run manual shifts.`, pct: Math.min(1, S.cash / byId.furnace.cost), sub: sub(byId.furnace.cost) };
+    if (S.st.fab.on && !baysReady()) { const done = REQUIRED_BAYS.filter(b => S.bays[b]).length; const next = REQUIRED_BAYS.find(b => !S.bays[b]); const M = SG.MISSIONS[next]; return { text: `${M.title} · ${fmt$(M.cost)} — bays ${done}/6; you are outsourcing ${6 - done} step${6 - done > 1 ? 's' : ''} at ${fmt$(outsourceFee())}/wafer.`, pct: Math.min(1, S.cash / M.cost), sub: sub(M.cost) }; }
     if (nextLocked) return { text: `${nextLocked.name} · ${fmt$(nextLocked.cost)} — ${nextLocked.oneShot ? 'tape out a design' : 'commission it'}.`, pct: Math.min(1, S.cash / Math.max(1, nextLocked.cost)), sub: sub(nextLocked.cost) };
-    if (S.node !== 'N2') { const id = S.node === 'N5' ? 'node-n3' : 'node-n2'; const M = SG.MISSIONS[id]; return { text: `Migrate to ${M.effect.node} · ${fmt$(M.cost)} — racks are shipping; keep the chain fed.`, pct: Math.min(1, S.cash / M.cost), sub: sub(M.cost) }; }
+    if (S.node !== 'N2') { const id = S.node === 'N5' ? 'node-n3' : 'node-n2'; const M = SG.MISSIONS[id]; const ready = currentD0() < 0.1; return { text: ready ? `Migrate to ${M.effect.node} · ${fmt$(M.cost)} — resets D0 (≈${fmtN(diesPerWafer(S.design.A) * yieldModel(S.design.model || 'nb', S.design.A / 100, 0.5, 3))} good dies/wafer for ~20k wafers).` : `Racks shipping. Push D0 below 0.1 before migrating to ${M.effect.node}; each node restarts yield learning.`, pct: ready ? Math.min(1, S.cash / M.cost) : Math.min(1, (0.5 - currentD0()) / 0.4), sub: ready ? sub(M.cost) : `D0 ${currentD0().toFixed(3)} → 0.100` }; }
     return { text: 'Leading edge reached. Push D0 down, finish the Study Hall, collect every achievement.', pct: Object.keys(S.answered).length / 176, sub: Object.keys(S.answered).length + '/176 questions' };
   }
 
@@ -509,7 +553,7 @@
       if (!s.oneShot) icon.append(el('span', { class: 'ring' }, el('span', { html: '<svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" cx="22" cy="22" r="18"/></svg>' }), on ? el('span', { class: 'ring-t' }, '0%') : ic('lock')));
       card.append(icon, topRow);
       if (!on) card.append(el('p', { class: 'st-short' }, s.short));
-      if (s.parallel) icon.append(el('span', { class: 'lvl par', title: 'Parallel branch: uses polished wafers, feeds CoWoS' }, 'PARALLEL'));
+      if (s.parallel) { lvlPill.textContent += ' · PARALLEL'; lvlPill.title = 'Parallel branch: uses polished wafers, feeds CoWoS'; }
       const status = el('div', { class: 'status' }); card.append(status);
       const actions = el('div', { class: 'actions' });
       if (!on) actions.append(el('button', { class: 'btn primary unlock', onclick: () => unlock(s) }, ic('play'), s.cost === 0 ? 'Commission (free)' : `${s.oneShot ? 'Tape out' : 'Commission'} · ${fmt$(s.cost)}`));
@@ -569,6 +613,7 @@
       const sv = n => `<svg class="ic"><use href="#i-${n}"/></svg>`;
       if (f && f.starved) msg = `<span class="warn">${sv('hourglass')}starved of ${f.starved}</span>`;
       else if (f && f.blocked) msg = `<span class="warn">${sv('box')}warehouse full: ${f.blocked}</span>`;
+      else if (f && f.util >= 0.98 && (dump[Object.keys(s.outputs)[0]] || 0) > 0.1) msg = `<span class="warn">${sv('box')}dumping ${pct(dump[Object.keys(s.outputs)[0]])} of output on the spot market</span>`;
       else if (f && f.util >= 0.98) msg = `<span class="ok">${sv('bolt')}running flat out</span>`;
       else if (f && f.util > 0.02) msg = `<span class="muted">${sv('play')}running at ${pct(util)}</span>`;
       if (em < 1) msg += ` <span class="warn">event ×${em.toFixed(2)}</span>`;
@@ -576,10 +621,11 @@
       if (s.id === 'sort' && S.design) extra.push(`${diesPerWafer(S.design.A)} dies × ${pct(yieldModel(S.design.model || 'nb', S.design.A / 100, currentD0(), 3))} = ${fmtN(goodDiesPerWafer())} good/wafer`);
       if (s.id === 'hbm') { const hc = hbmConfig(); extra.push(`${hc.height}-high · stack yield ${pct(hbmStackYield(hc))}`); }
       if (s.id === 'systems') extra.push(`field failures ${(fieldFail() * 100).toFixed(2)}%`);
-      if (s.id === 'fab') extra.push(`opex ${fmt$(stationOpex(s))}/wafer · ${S.node}`);
+      if (s.id === 'fab') extra.push(`opex ${fmt$(stationOpex(s))}/wafer · ${S.node}` + (baysReady() ? '' : ` · outsourcing ${baysMissing().length} bay${baysMissing().length > 1 ? 's' : ''}`));
+      const net = netPerDay(s); extra.unshift(`<span class="${net >= 0 ? 'ok' : 'warn'}">net ${net >= 0 ? '+' : ''}${fmt$(net)}/day</span>`);
       html += `<div class="st-msg">${msg}${extra.length ? '<div class="small muted">' + extra.join(' · ') + '</div>' : ''}</div>`;
       c.status.innerHTML = html;
-      const u = c.actions.querySelector('.upg'); if (u) { const uc = upgradeCost(s); u.innerHTML = `⬆ L${st.level + 1} <span class="price">${fmt$(uc)}</span>`; u.disabled = S.cash < uc; u.classList.toggle('affordable', S.cash >= uc); }
+      const u = c.actions.querySelector('.upg'); if (u) { const uc = upgradeCost(s); const pb = paybackDays(s); u.innerHTML = `⬆ L${st.level + 1} <span class="price">${fmt$(uc)}</span>${isFinite(pb) ? `<span class="price muted">· ${pb < 1 ? '<1' : fmtN(pb)} d payback</span>` : ''}`; u.disabled = S.cash < uc; u.classList.toggle('affordable', S.cash >= uc); u.title = isFinite(pb) ? `One more level adds ${fmt$(capacity(s) / Math.max(1, st.level) * valueAdd(s))}/day; pays back in ${fmtN(pb)} days` : 'This station loses money per cycle right now'; }
       const belt = belts[s.id]; if (belt) { const rate = f ? f.util : 0; belt.classList.toggle('paused', !f || f.rate <= 0); belt.style.setProperty('--dur', (rate > 0 ? (2.4 - 1.8 * Math.min(1, rate)) : 3).toFixed(2) + 's'); belt.style.setProperty('--gap', Math.round(30 - 18 * Math.min(1, rate)) + 'px'); const outRes = Object.keys(s.outputs)[0]; const br = belt.querySelector('.belt-rate'); if (br && outRes) br.textContent = f && f.rate > 0 ? fmtN(f.rate * resolveQty(s.outputs[outRes])) + '/d' : '—'; }
     }
   }
@@ -622,6 +668,8 @@
     $('#h-mult').textContent = '×' + revMult().toFixed(2);
     $('#h-events').textContent = S.events.length ? S.events.length + ' event' + (S.events.length > 1 ? 's' : '') : '';
     const o = objective(); $('#obj-text').textContent = o.text; $('#obj-fill').style.width = Math.round((o.pct || 0) * 100) + '%'; $('#obj-sub').textContent = o.sub || '';
+    let cl = $('#contract-line'); if (!cl) { cl = el('div', { id: 'contract-line', class: 'small gold' }); $('.obj-body').append(cl); }
+    cl.textContent = S.contract ? `Contract: ${fmtN(S.contract.delivered)} / ${fmtN(S.contract.n)} ${SG.RES_SHORT[S.contract.r] || S.contract.r} · ${Math.max(0, Math.ceil(S.contract.deadline - S.day))} days left · +30%` : '';
     const ready = (o.pct || 0) >= 1 && !!o.sub; $('#obj-tag').textContent = ready ? 'READY' : 'NEXT'; $('#obj-tag').classList.toggle('ready', ready);
     const nextLocked = SG.STATIONS.find(s => !S.st[s.id].on); document.querySelectorAll('#minimap .mm').forEach(d => d.classList.toggle('next', !!nextLocked && d.dataset.id === nextLocked.id));
   }
@@ -656,7 +704,10 @@
     buildChain(); renderLog(); renderHeader();
     // establishing shot: pan from the rack end of the line back to the mine
     const wrap = $('.chain-wrap');
-    if (wrap && !PARAMS.has('open') && wrap.scrollWidth > wrap.clientWidth + 40) {
+    let panned = false; try { panned = sessionStorage.getItem('sg-panned') === '1'; } catch (e) {}
+    const reduce = matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (wrap && !PARAMS.has('open') && !panned && !reduce && !document.hidden && wrap.scrollWidth > wrap.clientWidth + 40) {
+      try { sessionStorage.setItem('sg-panned', '1'); } catch (e) {}
       const from = wrap.scrollWidth - wrap.clientWidth; wrap.scrollLeft = from; const t0 = performance.now();
       (function pan(now) { const k = Math.min(1, (now - t0) / 1400); wrap.scrollLeft = from * Math.pow(1 - k, 3); if (k < 1) requestAnimationFrame(pan); })(t0);
     }
@@ -680,17 +731,17 @@
   function showHelp() {
     modal(el('div', null,
       el('div', { class: 'tag' }, 'HOW TO PLAY'), el('h2', null, 'Sand to GPU: Foundry'),
-      el('p', null, 'A production-chain game built from the course. One game second is one day. Resources flow left to right along the belt; whatever the furthest station makes is sold, and upstream surplus beyond a 30-day warehouse is dumped on the spot market.'),
+      el('p', null, 'A production-chain game built from the course. One game second is one day. Resources flow left to right along the belt; whatever the furthest station makes is sold, and upstream surplus beyond a 30-day warehouse (sized to what the next station can actually use) sells at market price.'),
       el('ul', null,
         el('li', null, el('b', null, 'Commission each station. '), 'No reading required first: a briefing on the course\'s figures, then you assemble the machine part by part on the course\'s own drawing, then you tune the course\'s real interactives against live targets, then a short certification from the course\'s quizzes.'),
-        el('li', null, el('b', null, 'Click to work. '), 'Click any station icon to run a manual shift. Rush orders pop up now and then; click them before they vanish.'),
+        el('li', null, el('b', null, 'Click to work. '), 'Click any station illustration to run a manual shift (10% of a day). Contract offers pop up now and then: three days of output within eight, at +30%, with a penalty for a shortfall.'),
         el('li', null, el('b', null, 'Find the bottleneck. '), 'Cards show the gauge, "starved of X" and "warehouse full". Upgrade levels; every fifth level is an automation tier worth +25%.'),
         el('li', null, el('b', null, 'Go deep in the fab. '), 'Eight tool bays, each its own mission. Six are required before a wafer moves. Later, migrate the node and watch D0 learning restart.'),
-        el('li', null, el('b', null, 'Multiply. '), 'Every quiz answer adds 0.5% to all revenue forever; achievements add more. The Study Hall pays a grant per answer. Your chain keeps running at half speed while you are away.')),
+        el('li', null, el('b', null, 'Multiply. '), 'Every question answered right on the first try adds 0.5% to all revenue forever and pays a grant scaled to your next goal; achievements add more. Your chain keeps running while you are away (up to 60 days).')),
       el('p', { class: 'small muted' }, 'Capex and rates are scaled for play; the numbers in the briefings, widgets, labs and quizzes are the course\'s.'),
       el('button', { class: 'btn primary', onclick: closeModal }, 'To the floor')
     ), { wide: true });
   }
   window.addEventListener('DOMContentLoaded', init);
-  SG.engine = { get S() { return S; }, buildChain, openLab, priceOf, currentD0, tick, upgradeCost, capacity, byId, flow, spawnRush };
+  SG.engine = { get S() { return S; }, buildChain, openLab, priceOf, currentD0, tick, upgradeCost, capacity, byId, flow, spawnRush, valueAdd, netPerDay, warehouseCap };
 })();

@@ -7,7 +7,7 @@ SG.RES = {
   quartz:  { name: 'Quartz',             unit: 't',      price: 100,     color: '#d9c58b' },
   mgsi:    { name: 'MG-Si (98–99%)',     unit: 't',      price: 2500,    color: '#9aa4b2' },
   poly:    { name: 'Polysilicon (9N+)',  unit: 'kg',     price: 40,      color: '#c7d3e3' },
-  ingot:   { name: '300 mm ingot',       unit: 'ingot',  price: 180000,  color: '#8fb5d9' },
+  ingot:   { name: '300 mm ingot',       unit: 'ingot',  price: 90000,  color: '#8fb5d9' },
   wafer:   { name: 'Polished wafer',     unit: 'wafer',  price: 150,     color: '#7ec8e3' },
   fwafer:  { name: 'Finished wafer',     unit: 'wafer',  price: 16000,   color: '#5fa8d3' },
   die:     { name: 'Known-good die',     unit: 'die',    price: 1200,    color: '#62d4a0' },
@@ -32,7 +32,7 @@ SG.STATIONS = [
   },
   {
     id: 'furnace', name: 'Arc Furnace', stage: 'B', modules: [1], icon: '🔥',
-    cost: 100000, rate: 30, inputs: { quartz: 3 }, outputs: { mgsi: 1 }, opex: 300,
+    cost: 500000, rate: 30, inputs: { quartz: 3 }, outputs: { mgsi: 1 }, opex: 300,
     short: 'Carbothermic reduction at ~2,000 °C: SiO₂ + 2C → Si + 2CO. Output is 98–99% silicon.',
     guide: {
       in: 'Quartz plus carbon (coal, charcoal, wood chips).', out: 'Metallurgical-grade silicon (MG-Si), ~98–99% pure, tapped as a liquid and cast into lumps.',
@@ -43,7 +43,7 @@ SG.STATIONS = [
   },
   {
     id: 'siemens', name: 'Siemens Plant', stage: 'B', modules: [1], icon: '⚗',
-    cost: 1000000, rate: 20, inputs: { mgsi: 1 }, outputs: { poly: 700 }, opex: 8000,
+    cost: 5000000, rate: 20, inputs: { mgsi: 1 }, outputs: { poly: 700 }, opex: 8000,
     short: 'MG-Si → trichlorosilane (liquid) → distilled → CVD onto hot rods for 3–5 days → 9N–11N polysilicon.',
     guide: {
       in: 'MG-Si lumps, HCl, hydrogen.', out: 'Electronic-grade polysilicon chunks, 9N–11N (fewer than one foreign atom per billion).',
@@ -54,7 +54,7 @@ SG.STATIONS = [
   },
   {
     id: 'cz', name: 'Crystal Puller', stage: 'C', modules: [2], icon: '🧊',
-    cost: 5000000, rate: 6, inputs: { poly: 300 }, outputs: { ingot: 1 }, opex: 15000, lab: 'cz',
+    cost: 25000000, rate: 6, inputs: { poly: 300 }, outputs: { ingot: 1 }, opex: 15000, lab: 'cz',
     short: 'Melt 300 kg of poly in a quartz crucible, dip a seed, Dash-neck, then pull a 300 mm, ~2 m single crystal over 30–40 h.',
     guide: {
       in: 'Polysilicon chunks and a pinch of dopant (boron for p-type).', out: 'A single crystal ~305–310 mm across and ~2 m long, one perfect lattice with no dislocations.',
@@ -65,7 +65,7 @@ SG.STATIONS = [
   },
   {
     id: 'wafering', name: 'Wafering Plant', stage: 'D', modules: [3], icon: '💿',
-    cost: 8000000, rate: 6, inputs: { ingot: 1 }, outputs: { wafer: 'WPI' }, opex: 40000,
+    cost: 40000000, rate: 6, inputs: { ingot: 1 }, outputs: { wafer: 'WPI' }, opex: 40000,
     short: 'Crop, grind, notch, diamond-wire saw, lap, etch, double-side polish, CMP, RCA clean, inspect.',
     guide: {
       in: 'A rough single-crystal cylinder.', out: 'Polished 300 mm discs, 775 µm thick, flat to ~20 nm over each exposure site, with fewer than 10¹⁰ metal atoms per cm² on the surface, one foreign atom per ~70,000 surface atoms.',
@@ -87,7 +87,7 @@ SG.STATIONS = [
   },
   {
     id: 'fab', name: 'Wafer Fab', stage: 'E–G', modules: [5, 6, 7, 8, 9, 10, 11, 12], icon: '🏭',
-    cost: 120000000, rate: 1000, inputs: { wafer: 1 }, outputs: { fwafer: 1 }, opex: 8000, lab: 'litho', lab2: 'oxide', needsDesign: true,
+    cost: 600000000, rate: 1000, inputs: { wafer: 1 }, outputs: { fwafer: 1 }, opex: 8000, lab: 'litho', lab2: 'oxide', needsDesign: true,
     short: '~1,000–1,500 steps, ~80 litho layers, ~90 days: transistors (FEOL), contacts (MOL), then 15–18 levels of copper wiring (BEOL).',
     guide: {
       in: 'A blank polished wafer and a mask set.', out: 'A wafer carrying billions of finished transistors under 15–18 levels of copper wiring, electrically complete.',
@@ -98,7 +98,7 @@ SG.STATIONS = [
   },
   {
     id: 'sort', name: 'Wafer Sort', stage: 'H', modules: [13, 14], icon: '🔬',
-    cost: 40000000, rate: 1000, inputs: { fwafer: 1 }, outputs: { die: 'DPW' }, opex: 300,
+    cost: 200000000, rate: 1000, inputs: { fwafer: 1 }, outputs: { die: 'DPW' }, opex: 300,
     short: 'Probe every die hot and cold on ATE; program e-fuses to disable bad blocks; build the wafer map of known-good dies.',
     guide: {
       in: 'A finished wafer.', out: 'A wafer map: which dies work, at what speed, which spare blocks to disable. Known-good dies (KGD) go on to packaging.',
@@ -109,7 +109,7 @@ SG.STATIONS = [
   },
   {
     id: 'hbm', name: 'HBM Plant', stage: 'K', modules: [15], icon: '🧱',
-    cost: 150000000, rate: 300, inputs: { wafer: 1 }, outputs: { hbm: 'HBMPW' }, opex: 300, lab: 'hbm', parallel: true,
+    cost: 750000000, rate: 1500, inputs: { wafer: 1 }, outputs: { hbm: 'HBMPW' }, opex: 5250, lab: 'hbm', parallel: true,
     short: 'DRAM wafers → TSVs (Bosch etch, Cu fill) → thin to ~30 µm → probe for known-good dies → stack 8/12/16-high on a base die → test.',
     guide: {
       in: 'DRAM wafers on a 1β/1γ process, and a base logic die (made at TSMC for SK hynix and Micron HBM4).', out: 'A tested 8-, 12- or 16-high memory stack, 720 µm (HBM3E) or 775 µm (HBM4) tall, with ~1–2 TB/s through its bottom.',
@@ -120,7 +120,7 @@ SG.STATIONS = [
   },
   {
     id: 'cowos', name: 'CoWoS Packaging', stage: 'I–N', modules: [16, 17], icon: '📦',
-    cost: 250000000, rate: 1000, inputs: { die: 'NDIE', hbm: 'NHBM' }, outputs: { pkg: 1 }, opex: 3000,
+    cost: 1250000000, rate: 4000, inputs: { die: 'NDIE', hbm: 'NHBM' }, outputs: { pkg: 1 }, opex: 3000,
     short: 'Bump, thin and dice the GPU dies; place dies and HBM on a 3.3-reticle interposer (chip-on-wafer); mount on an ABF substrate (wafer-on-substrate); lid, balls.',
     guide: {
       in: 'Bumped GPU dies, tested HBM stacks, an interposer wafer, a build-up substrate.', out: 'A finished GPU package: two dies and eight HBM stacks on one interposer on a ~90 × 90 mm substrate.',
@@ -131,7 +131,7 @@ SG.STATIONS = [
   },
   {
     id: 'test', name: 'Final Test', stage: 'N', modules: [18], icon: '🌡',
-    cost: 50000000, rate: 1000, inputs: { pkg: 1 }, outputs: { gpu: 0.97 }, opex: 500, lab: 'test',
+    cost: 250000000, rate: 4000, inputs: { pkg: 1 }, outputs: { gpu: 0.97 }, opex: 500, lab: 'test',
     short: 'Package test on ATE at several temperatures, burn-in (hours at high temperature and voltage), system-level test on real workloads, binning.',
     guide: {
       in: 'A finished GPU package already worth thousands of dollars.', out: 'A binned, shippable GPU (B200 vs down-binned SKUs) in a tray.',
@@ -142,7 +142,7 @@ SG.STATIONS = [
   },
   {
     id: 'systems', name: 'Systems (NVL72)', stage: 'O', modules: [19, 20], icon: '🗄',
-    cost: 150000000, rate: 10, inputs: { gpu: 72 }, outputs: { rack: 1 }, opex: 600000,
+    cost: 750000000, rate: 40, inputs: { gpu: 72 }, outputs: { rack: 1 }, opex: 600000,
     short: 'Package onto an SXM module, 8 per HGX baseboard or 4 per GB200 compute tray; 18 trays + 9 NVSwitch trays + ~5,000 NVLink cables + liquid cooling = one rack.',
     guide: {
       in: 'Finished GPU packages, Grace CPUs, NVSwitch chips, HDI PCBs, VRMs, cold plates.', out: 'A GB200 NVL72 rack: 72 GPUs in one NVLink domain, ~120–130 kW, ~1.4 t, liquid cooled, installed and validated in a data center.',
@@ -177,9 +177,9 @@ SG.EVENTS = [
 ];
 
 SG.MITIGATIONS = [
-  { id: 'secondsource', name: 'Qualify second sources', cost: 30000000, text: 'Qualify a second resist, gas and substrate supplier on every affected layer. A multi-year program in reality; here it halves the impact of supply events.' },
-  { id: 'isolation', name: 'Seismic base isolation', cost: 40000000, text: 'Put the fab on base isolators and add fast tool restart. Earthquake scrap falls from 30% to 5% of wafers in process.' },
-  { id: 'stockpile', name: 'Strategic inventory (90 days)', cost: 50000000, text: 'Hold 90 days of wafers, HBM and substrates. Warehouse caps triple, so upstream surplus is stored instead of dumped on the spot market.' }
+  { id: 'secondsource', name: 'Qualify second sources', cost: 150000000, text: 'Qualify a second resist, gas and substrate supplier on every affected layer. A multi-year program in reality; here it halves the impact of supply events.' },
+  { id: 'isolation', name: 'Seismic base isolation', cost: 200000000, text: 'Put the fab on base isolators and add fast tool restart. Earthquake scrap falls from 30% to 5% of wafers in process.' },
+  { id: 'stockpile', name: 'Strategic inventory (90 days)', cost: 250000000, text: 'Hold 90 days of inputs instead of 30. Warehouse caps triple, so a supply event or a downstream outage does not starve the line.' }
 ];
 
 // Sequencing puzzles: click the steps in the correct order.
@@ -280,7 +280,7 @@ SG.ACHIEVEMENTS = [
   { id: 'bottleneck', title: 'Bottleneck buster', text: 'Upgrade CoWoS to level 5.', check: S => S.st.cowos.level >= 5, reward: { mult: 0.05 } },
   { id: 'tiers', title: 'Automation', text: 'Reach level 10 on any station.', check: S => Object.values(S.st).some(x => x.level >= 10), reward: { mult: 0.05 } },
   { id: 'clicker', title: 'Hands on', text: 'Run 100 manual shifts.', check: S => (S.stats.clicks || 0) >= 100, reward: { mult: 0.03 } },
-  { id: 'rush', title: 'Rush hour', text: 'Collect five rush orders.', check: S => (S.stats.rush || 0) >= 5, reward: { mult: 0.03 } },
+  { id: 'rush', title: 'On time, in full', text: 'Deliver five contracts by their deadline.', check: S => (S.stats.rush || 0) >= 5, reward: { mult: 0.03 } },
   { id: 'rack', title: 'Sand to GPU', text: 'Ship the first NVL72 rack.', check: S => (S.made.rack || 0) >= 1, reward: { mult: 0.10 } },
   { id: 'n2', title: 'Leading edge', text: 'Migrate the fab to N2.', check: S => S.node === 'N2', reward: { mult: 0.10 } },
   { id: 'billion', title: 'Unicorn', text: 'Hold $1B in cash.', check: S => S.cash >= 1e9, reward: { mult: 0.05 } }
@@ -308,3 +308,11 @@ SG.STATION_ART = {
 // Links into the course (the reader is a separate repo).
 SG.COURSE_URL = 'https://github.com/DicksonWu654/sand-to-gpu';
 SG.courseLink = m => { const q = window.SAND_QUIZ && window.SAND_QUIZ[m]; return SG.COURSE_URL + '/blob/main/course/modules/' + (q ? q.file : String(m).padStart(2, '0')) + '.md'; };
+
+// Contracts: a customer wants N units by a deadline at a premium; a shortfall pays a penalty. Replaces rush orders.
+SG.CONTRACTS = [
+  { title: 'Hyperscaler prepayment', text: 'A cloud customer prepays for capacity years ahead. Fabless companies pay TSMC and the HBM makers the same way, because output is capped by whatever capacity suppliers allocate; the whole chain runs on committed volume, not spot orders. (Module 00)' },
+  { title: 'Sovereign AI cluster', text: 'A government-backed data center wants a fixed delivery date for a fixed rack count. Lead times run from the wafer start (~90 days in the fab) through CoWoS and HBM allocation, so a late commitment is a real risk. (Modules 19, 20)' },
+  { title: 'Long-term supply agreement', text: 'Memory and wafer buyers sign multi-year agreements to lock capacity and price. In the 2025–26 shortage, contract customers got parts and spot buyers got prices 2–3× higher. (Modules 15, 20)' },
+  { title: 'OEM launch window', text: 'A system builder has a launch date and will pay a premium to hit it, with a penalty for slipping: the rule of ten applies to schedules as well as to defects. (Module 19)' }
+];
