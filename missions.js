@@ -16,7 +16,7 @@ SG.MISSIONS = {
   },
   furnace: {
     title: 'Build the arc furnace', brief: [
-      { h: 'Break the strongest bond in geochemistry', p: 'The Si–O bond is worth ~450 kJ/mol. Carbon takes the oxygen away at ~2,000 °C: SiO₂ + 2C → Si + 2CO. The reaction needs ~8 MWh per tonne of silicon in theory; real furnaces use 11–13 MWh/t, which is why they sit next to cheap hydro power in Norway, Brazil and China.', fig: 'm01/3-carbothermic-reduction-the-submerged-arc-furnace' },
+      { h: 'Break the strongest bond in geochemistry', p: 'The Si–O bond is worth ~450 kJ/mol. Carbon takes the oxygen away at ~2,000 °C: SiO₂ + 2C → Si + 2CO. The reaction needs ~6.8 MWh per tonne of silicon in theory; real furnaces use 11–13 MWh/t, which is why they sit next to cheap hydro power in Norway, Brazil and China.', fig: 'm01/3-carbothermic-reduction-the-submerged-arc-furnace' },
       { h: 'What comes out', p: 'Metallurgical-grade silicon, 98–99% pure, tapped as a liquid and cast into lumps, at roughly $2–3 per kg. That is seven orders of magnitude short of what a fab needs, but it is the feedstock for every purification route that follows. About 2 tonnes of carbon monoxide leave per tonne of silicon.' }
     ],
     build: { scene: 'arc-furnace', fig: 'm01/3-carbothermic-reduction-the-submerged-arc-furnace', why: ['Three graphite electrodes carry the arc current into the bed; the heat is generated inside the charge, not around it, which is what "submerged" means.', 'The charge of lump quartz and carbon is fed from the top and slowly sinks as it reacts.', 'Carbon monoxide rises through the open bed and burns at the top; it is the oxygen leaving.', 'Molten silicon pools at the bottom and is tapped through a separate hole into ladles.'], decoys: ['Quartz crucible', 'Photomask'] },
@@ -35,7 +35,7 @@ SG.MISSIONS = {
     title: 'Build the crystal puller', brief: [
       { h: 'One crystal, two metres long', p: 'About 300–450 kg of polysilicon and a pinch of dopant melt in a quartz crucible at ~1,420 °C under argon. A seed crystal is dipped, then pulled upward while both seed and crucible rotate. The crystal that grows is a single lattice; every wafer inherits its orientation.', fig: 'm02/anatomy-of-a-300-mm-cz-puller' },
       { h: 'The Dash neck', p: 'The seed\'s thermal shock creates dislocations. Pulling a ~3 mm neck fast makes every inclined dislocation glide out to the free surface before the crystal widens. After the neck comes the shoulder, then a body grown at 0.5–1.5 mm/min for 30–50 hours.' },
-      { h: 'The crucible dissolves into the melt', p: 'Quartz is SiO₂, so the melt picks up oxygen from its own container; crucible rotation stirs more in. Some oxygen is useful (it strengthens the wafer and getters metals), too much makes precipitates. The v/G ratio of pull rate to thermal gradient decides whether the crystal is vacancy-rich (voids called COPs) or interstitial-rich (dislocation loops).', fig: 'm02/oxygen-and-carbon' }
+      { h: 'The crucible dissolves into the melt', p: 'Quartz is SiO₂, so the melt picks up oxygen from its own container; crucible rotation stirs more in. Some oxygen is useful (it strengthens the wafer and getters metals), too much makes precipitates.', fig: 'm02/oxygen-and-carbon' }
     ],
     build: { scene: 'cz-puller', fig: 'm02/anatomy-of-a-300-mm-cz-puller', why: ['The pull shaft lifts the seed slowly upward while rotating it; pull rate is the fast actuator of diameter control.', 'Argon flows down over the crystal and sweeps silicon monoxide and carbon monoxide away from the melt surface.', 'The heater surrounds the crucible; its power is the slow actuator that sets melt temperature.', 'The crystal grows from the meniscus at the melt surface; a camera watches that bright ring to measure diameter.', 'The melt is what is left of the charge; as it is consumed the crucible is lifted to keep the surface at the same height.', 'The quartz crucible holds the melt, sits in a graphite susceptor, and is discarded after every run because it devitrifies.'], decoys: ['Electron beam column'] },
     commission: [{ widget: 'cz-puller' }], certify: { modules: [2], n: 2 }
@@ -43,7 +43,7 @@ SG.MISSIONS = {
   wafering: {
     title: 'Build the wafering plant', brief: [
       { h: 'From cylinder to disc', p: 'Crown and tail are cropped, the body is ground to exact diameter with a notch along the <110> direction, then a multi-wire saw with diamond-coated wire slices the whole section at once. Each cut turns ~150 µm of crystal into dust (the kerf), so slice pitch decides how many wafers an ingot gives.', fig: 'm03/multi-wire-slicing' },
-      { h: 'Every step removes the damage of the one before', p: 'Sawing leaves subsurface cracks; lapping or double-disk grinding removes them and leaves finer damage; etching removes that; double-side polishing brings global flatness; a final CMP brings the front surface below 0.1 nm roughness; RCA cleaning removes particles, oxide and metals. Then inspection: flatness per exposure site, particles by laser scattering, metals by TXRF.', fig: 'm03/lapping-and-double-disk-grinding' },
+      { h: 'Every step removes the damage of the one before', p: 'Each step removes the damage of the one before and leaves less of its own: the saw leaves 5–15 µm of cracks, grinding takes them off and leaves 2–5 µm, an alkaline etch takes that off and leaves the first damage-free surface, and polishing then only has to make it flat (~20 nm per exposure site) and smooth (< 0.1 nm). RCA cleaning finishes by lifting particles, stripping oxide and dissolving metals; inspection checks flatness, particles by laser scattering and metals by TXRF.', fig: 'm03/lapping-and-double-disk-grinding' },
       { h: 'The spec the fab assumes', p: '775 µm thick, ~127 g, flat to ~20 nm over each exposure site. A prime wafer costs on the order of $100–200; the fab will add $16–30k of value to it. Suppliers: Shin-Etsu, SUMCO, GlobalWafers, Siltronic, SK Siltron.' }
     ],
     build: { fig: 'm03/multi-wire-slicing', mode: 'order' },
@@ -53,10 +53,11 @@ SG.MISSIONS = {
     title: 'Design the chip and tape out', brief: [
       { h: 'The chip is text before it is silicon', p: 'Architecture becomes RTL (register-transfer level code), RTL is synthesized to standard cells from the foundry\'s PDK, cells are placed and routed, and then the design is checked: timing, IR drop, electromigration, DRC, LVS, antenna rules. Verification dominates because a bug found after tape-out costs a new mask set.', fig: 'm19/verification-why-nvidia-runs-more-emulators-than-anyone' },
       { h: 'The reticle limit', p: 'A scanner exposes a field of 26 × 33 mm = 858 mm². No single die can be larger. H100 is 814 mm²; Blackwell uses two ~800 mm² dies joined on the package. High-NA EUV halves the field to 26 × 16.5 mm, which is why chiplets matter more each node.' },
-      { h: 'Masks', p: 'A leading-node mask set is 70–100+ photomasks at ~$20–30M. EUV blanks are fused silica with 40 Mo/Si bilayers, written by multi-beam electron beam, inspected with 13.5 nm light and protected by a pellicle.' }
+      { h: 'Emulate before you tape out', p: 'Booting an operating system takes ~10¹⁰ cycles: about 1.4 hours on an emulator running at 1–10 MHz, and ~60 years in software simulation. That is why NVIDIA runs data-center-scale emulator farms, and why a bug that escapes to silicon costs ~3 months (a metal-only respin 6–8 weeks), not just money.' },
+      { h: 'Masks', p: 'A leading-node mask set is 70–100+ photomasks at ~$20–30M. EUV blanks are low-thermal-expansion glass (ULE) with 40 Mo/Si bilayers, written by multi-beam electron beam, inspected with 13.5 nm light and protected by a pellicle.' }
     ],
     build: { fig: 'm19/verification-why-nvidia-runs-more-emulators-than-anyone', mode: 'order' },
-    commission: [{ widget: 'gpu-bom' }], certify: { modules: [19, 4], n: 2 }
+    commission: [{ widget: 'gpu-bom', goal: 'On the H100 preset, find the line that is 40–50% of the bill (HBM) and the line that is only ~10% (the die), then get the modeled total under $3,000. The wafer you spend the whole game making is the small part.' }], certify: { modules: [19, 4], n: 2 }
   },
   fab: {
     title: 'Break ground on the fab', brief: [
@@ -70,7 +71,8 @@ SG.MISSIONS = {
   'bay-clean': {
     title: 'Cleanroom & AMHS bay', bay: true, optional: true, cost: 10000000, brief: [
       { h: 'Clean air', p: 'ISO class 5 allows 3,520 particles of 0.5 µm per m³, about 10,000× cleaner than city air. Filtered air comes down through the ceiling at ~0.3–0.5 m/s and crosses the room in seconds. Wafers spend most of their life inside sealed FOUPs anyway.', fig: 'm05/cleanroom-classes-and-airflow' },
-      { h: 'Wafers in motion', p: 'Overhead hoist transport carries 25-wafer FOUPs between bays; the queue at each tool, not the tool time, sets the cycle time. Raise utilization toward 100% and queues explode (the X-factor), which is why fabs run below full load on purpose.' }
+      { h: 'Wafers in motion', p: 'Overhead hoist transport carries 25-wafer FOUPs between bays; the queue at each tool, not the tool time, sets the cycle time. Raise utilization toward 100% and queues explode (the X-factor), which is why fabs run below full load on purpose.' },
+      { h: 'Why fabs run below full load', p: 'Waiting time scales as u/(1 − u). At 80% utilization a tool\'s queue term is 4, at 90% it is 9, at 95% it is 19. Raw process time is only 25–50% of the ~90-day cycle; the rest is queueing, so only bottleneck tools are run near full.' }
     ],
     build: { fig: 'm05/cleanroom-classes-and-airflow', mode: 'order' },
     commission: [{ widget: 'fab-anatomy' }, { widget: 'amhs-sim' }], certify: { modules: [5], n: 1 }
@@ -78,7 +80,7 @@ SG.MISSIONS = {
   'bay-oxdep': {
     title: 'Oxidation & deposition bay', bay: true, cost: 12000000, brief: [
       { h: 'Growing a film from the wafer itself', p: 'Heat silicon in oxygen (dry) or steam (wet) and SiO₂ grows into and out of the surface, consuming 0.44 nm of silicon per nm of oxide. Deal–Grove: thin oxide grows linearly (reaction-limited), thick oxide as √t (diffusion-limited), so doubling the thickness takes four times as long.', fig: 'm06/1-thermal-oxidation-growing-sio2-from-the-wafer-itself' },
-      { h: 'Depositing films one atom layer at a time', p: 'CVD reacts gases on the wafer; PVD sputters atoms from a target; ALD alternates two self-limiting half-reactions (precursor pulse, purge, water pulse, purge) so each cycle adds about one monolayer, which is how a 1.8 nm hafnium oxide gate dielectric can be made uniform across 300 mm.', fig: 'm06/5-atomic-layer-deposition' }
+      { h: 'Depositing films one atom layer at a time', p: 'CVD reacts gases on the wafer; PVD sputters atoms from a target; ALD alternates two self-limiting half-reactions (precursor pulse, purge, water pulse, purge) so each cycle adds a fixed ~0.1 nm, about a third of a monolayer; ~20 cycles make the 1.8 nm hafnium-oxide gate dielectric, uniform across 300 mm because the thickness is counted, not timed.', fig: 'm06/5-atomic-layer-deposition' }
     ],
     build: { fig: 'm06/5-atomic-layer-deposition', mode: 'order' },
     commission: [{ widget: 'deal-grove' }, { widget: 'ald-cycle' }], certify: { modules: [6], n: 2 }
@@ -87,7 +89,7 @@ SG.MISSIONS = {
     title: 'Lithography bay', bay: true, cost: 30000000, brief: [
       { h: 'Resolution is wavelength over aperture', p: 'Half-pitch = k1·λ/NA. For 193 nm immersion (NA 1.35, k1 ≈ 0.28) that is ~40 nm half-pitch, ~80 nm pitch. Depth of focus falls as 1/NA², which is why the wafer must be flat to tens of nanometres.', fig: 'm07/anatomy-of-a-193-nm-immersion-scanner' },
       { h: 'Stretching DUV: multi-patterning', p: 'Below 80 nm pitch, one layer becomes two exposures (LELE) or a spacer trick: pattern a mandrel, coat it with a conformal film, etch back, pull the mandrel and the spacers remain at half the pitch (SADP); do it twice for a quarter (SAQP). Each trick adds steps, overlay error and cost.' },
-      { h: 'EUV: 13.5 nm light in a vacuum', p: 'A CO₂ laser hits 50,000 tin droplets a second to make plasma that emits 13.5 nm light. Nothing is transparent at that wavelength, so the optics are Mo/Si multilayer mirrors, the mask is reflective, and the whole path is vacuum. One NXE:3800E costs ~$200M and exposes ~220 wafers an hour; a 250–600 W source decides throughput and shot noise.', fig: 'm08/the-laser-produced-plasma-source' },
+      { h: 'EUV: 13.5 nm light in a vacuum', p: 'A CO₂ laser hits 50,000 tin droplets a second to make plasma that emits 13.5 nm light. Nothing is transparent at that wavelength, so the optics are Mo/Si multilayer mirrors, the mask is reflective, and the whole path is vacuum. Only ~1–2% of the source\'s light survives the mirror bounces to the wafer, which is why source power (250 W in 2017, 500–600 W now) sets both the throughput of a ~$200M scanner and how many photons each contact hole gets.', fig: 'm08/the-laser-produced-plasma-source' },
       { h: 'The resist and the track', p: 'A chemically amplified resist turns each photon into an acid that, during the post-exposure bake, deprotects hundreds of polymer sites. The bake sets the acid diffusion blur; the track (coat, bake, develop) wraps around the scanner and must keep pace with it.' }
     ],
     build: { fig: 'm08/the-laser-produced-plasma-source', mode: 'order' },
@@ -104,7 +106,8 @@ SG.MISSIONS = {
   'bay-implant': {
     title: 'Implant & anneal bay', bay: true, cost: 15000000, brief: [
       { h: 'Shooting dopants into the crystal', p: 'Ions are extracted from a plasma source, sorted by mass in an analyser magnet (so a boron beam contains only boron), accelerated to the chosen energy and scanned across the wafer. Energy sets the depth (projected range), dose sets how many.', fig: 'm10/3-inside-an-ion-implanter' },
-      { h: 'Then repair the damage', p: 'Every implanted ion knocks silicon atoms out of place. An anneal (furnace, rapid thermal, spike, laser) repairs the lattice and moves dopants onto lattice sites where they are electrically active, but heat also lets them diffuse, so shallow junctions need the shortest, hottest anneals.' }
+      { h: 'Then repair the damage', p: 'Every implanted ion knocks silicon atoms out of place. An anneal (furnace, rapid thermal, spike, laser) repairs the lattice and moves dopants onto lattice sites where they are electrically active, but heat also lets them diffuse, so shallow junctions need the shortest, hottest anneals.' },
+      { h: 'Transient enhanced diffusion', p: 'Implant damage makes dopants diffuse 10³–10⁴× faster than the textbook rate while it heals, turning a 1.6 nm wander into ~50 nm in a slow, cool anneal. The spike anneal (1,050 °C for under a second) races through that window; a 1 s spike moves boron only ~2.4 nm.' }
     ],
     build: { fig: 'm10/3-inside-an-ion-implanter', mode: 'order' },
     commission: [{ widget: 'implanter-beamline' }, { widget: 'implant-profile' }], certify: { modules: [10], n: 2 }
@@ -128,7 +131,7 @@ SG.MISSIONS = {
   },
   'bay-metro': {
     title: 'Metrology & yield bay', bay: true, optional: true, cost: 12000000, brief: [
-      { h: 'Measure without touching', p: 'Ellipsometry reads film thickness from polarized light; scatterometry reads line width and profile from diffraction; CD-SEM images the pattern; overlay tools read alignment targets. Inspection finds defects, and every excursion is traced back through the tool data.', fig: 'm13/1-film-metrology-measuring-thickness-without-touching' },
+      { h: 'Measure without touching', p: 'Every litho loop is measured before etch because a bad resist pattern can be stripped and redone for the cost of a coat, while a bad etch scraps the wafer. Thickness comes from polarized light (ellipsometry), line width and profile from diffraction (scatterometry) or a low-energy SEM, and alignment from overlay targets; the metrology itself must stay well under a ~2 nm overlay budget. Inspection finds defects, and every excursion is traced back through the tool data.', fig: 'm13/1-film-metrology-measuring-thickness-without-touching' },
       { h: 'Yield is area times defect density', p: 'Poisson: Y = e^(−A·D0). An 800 mm² die at D0 = 0.1/cm² yields ~45%; a 100 mm² die ~90%. D0 starts several times higher on a new node and falls only as wafers are run and each defect mechanism is removed, one at a time.', fig: 'm13/8-spc-apc-fdc-and-the-excursion' }
     ],
     build: { fig: 'm13/8-spc-apc-fdc-and-the-excursion', mode: 'order' },
@@ -145,8 +148,8 @@ SG.MISSIONS = {
   hbm: {
     title: 'Build the HBM line', brief: [
       { h: 'A DRAM bit is a capacitor', p: 'One transistor, one capacitor: write a charge, read it by sharing it with the bit line, and refresh it before it leaks away. The capacitor is a tall cylinder with a dielectric under a nanometre of equivalent oxide; DRAM nodes are named 1α, 1β, 1γ.', fig: 'm15/4-the-storage-capacitor' },
-      { h: 'Stack it', p: 'HBM stacks 8, 12 or 16 DRAM dies on a base logic die, connected by through-silicon vias (~5 µm wide, ~50 µm deep) and microbumps at ~40 µm pitch. Dies are thinned to ~30 µm so the stack fits the 720 µm JEDEC height; 16-high needs ~20 µm dies or hybrid bonding without bumps.', fig: 'm15/15-anatomy-of-an-hbm-stack' },
-      { h: 'Compound yield', p: 'Every one of the 13 or 17 dies must be good: stack yield = (1 − escape)^(n+1) × bond^n. That is why every die is probed for known-good-die status before stacking, and why an HBM bit costs ~3× the wafer area of a DDR5 bit.' }
+      { h: 'Stack it', p: 'HBM stacks 8, 12 or 16 DRAM dies on a base logic die, connected by through-silicon vias (~5 µm wide, ~50 µm deep) and microbumps at ~40 µm pitch. Dies are thinned to ~30 µm so a 12-high fits inside HBM3E\'s 720 µm cap; HBM4 raised the cap to 775 µm, so 16-high still fits with microbumps, with ~25 µm to spare. Hybrid bonding (no solder gap) is what 20-high and the generations after HBM4 will need.', fig: 'm15/15-anatomy-of-an-hbm-stack' },
+      { h: 'Compound yield', p: 'Every one of the 13 or 17 dies must be good: stack yield = (1 − escape)^(n+1) × bond^n. That is why every die is probed for known-good-die status before stacking, and why HBM takes ~2–3 wafers per DDR5 wafer-equivalent.' }
     ],
     build: { scene: 'hbm-section', fig: 'm15/15-anatomy-of-an-hbm-stack', why: ['Each DRAM die is a full memory chip thinned to ~30 µm; twelve of them give 36 GB.', 'Bonded interfaces between dies: microbumps with solder (TC-NCF or MR-MUF) or copper-to-copper hybrid bonds.', 'Through-silicon vias carry signals and power vertically through every die to the base.', 'The base die is a logic chip made at a foundry; it is the stack\'s interface to the GPU across the interposer.'], decoys: ['Heat spreader lid'] },
     commission: [{ widget: 'dram-cell' }, { widget: 'hbm-stack' }], certify: { modules: [15], n: 2 }
@@ -155,7 +158,8 @@ SG.MISSIONS = {
     title: 'Build the CoWoS line', brief: [
       { h: 'Chip on wafer, then wafer on substrate', p: 'Bumped GPU dies and tested HBM stacks are placed on an interposer wafer (chip-on-wafer), underfilled, molded and ground; the interposer is thinned to reveal its TSVs and gets C4 bumps; the unit is then mounted on an organic build-up substrate (wafer-on-substrate), lidded and balled.', fig: 'm17/anatomy-of-a-cowos-package-top-to-bottom' },
       { h: 'Why an interposer', p: 'Thousands of wires must run between the GPU and each HBM stack at a pitch no organic substrate can hold. A silicon interposer (CoWoS-S) or silicon bridge dies in a molded body (CoWoS-L) provide them. The interposer is 3.3 reticles across, so its wiring is stitched from several exposures.' },
-      { h: 'Warpage', p: 'Silicon, mold and substrate expand at different rates; at reflow the corners of a large package can lift before the solder wets (a non-wet). Underfill, stiffener rings and thermocompression bonding fight it. From 2023 to 2026 this step and HBM were the tightest constraint on AI accelerators.', fig: 'm16/the-substrate-in-depth' }
+      { h: 'Warpage', p: 'Silicon, mold and substrate expand at different rates; at reflow the corners of a large package can lift before the solder wets (a non-wet). Underfill, stiffener rings and thermocompression bonding fight it. From 2023 to 2026 this step and HBM were the tightest constraint on AI accelerators.', fig: 'm16/the-substrate-in-depth' },
+      { h: 'The substrate compounds too', p: 'The organic substrate is 8–12 build-up layers per side, each a laser-drilled, plated pattern that must land on the one below. At 98% per layer, 18 layers yield 0.98¹⁸ ≈ 70% and 12 layers 78%; every layer removed is worth a few points, and only a few dozen 90 × 90 mm units fit on a 510 × 515 mm panel.' }
     ],
     build: { scene: 'package-section', fig: 'm17/anatomy-of-a-cowos-package-top-to-bottom', why: ['The logic die (or two, for Blackwell) sits face-down on microbumps at ~40 µm pitch.', 'HBM stacks sit beside it: repeated memory dies with vertical TSVs on a base die.', 'Fine microbumps and the interposer\'s redistribution wiring connect GPU to HBM with thousands of lines.', 'The organic build-up substrate fans the connections out to BGA balls that meet the circuit board.'], decoys: ['Crucible'] },
     commission: [{ widget: 'cowos-flow' }, { widget: 'hybrid-bond' }, { widget: 'package-xsection' }], certify: { modules: [16, 17], n: 2 }
@@ -166,7 +170,7 @@ SG.MISSIONS = {
       { h: 'Every stage multiplies', p: 'Line yield × die yield × assembly yield × final test yield: 0.95 × 0.6 × 0.98 × 0.97 ≈ 0.54. Die yield dominates. System-level test runs real workloads to catch what ATE patterns cannot model.' }
     ],
     build: { fig: 'm18/the-test-cell-handlers-sockets-and-thermal-control', mode: 'order' },
-    commission: [{ widget: 'yield-cascade' }], certify: { modules: [18], n: 2 }
+    commission: [{ widget: 'yield-cascade', goal: 'Reproduce the course\'s 0.95 × 0.6 × 0.98 × 0.97 ≈ 0.54 (sort 60, assembly 98, final test 97), then find the one term that moves the product most: die yield.' }], certify: { modules: [18], n: 2 }
   },
   systems: {
     title: 'Build the systems line', brief: [
@@ -180,7 +184,8 @@ SG.MISSIONS = {
   'node-n3': {
     title: 'Migrate the fab to N3', node: true, cost: 2000000000, brief: [
       { h: 'What a node name means', p: '"3 nm" is a label, not a measurement. The real numbers are contacted poly pitch (~45–50 nm), metal pitch (~23–30 nm), cell height in tracks and the resulting transistor density (~200–215 MTr/mm² at N3E, of which real chips use 50–70%). Density gain per node has fallen to ~1.15–1.3×.', fig: 'm11/8-node-timeline-sram-and-design-co-optimization' },
-      { h: 'A new node resets the learning curve', p: 'D0 starts several times higher than on the mature node and comes down only with wafers run. The wafer sells for more (~$18–20k at N3, ~$30k at N2) and takes more EUV layers (20+ at N3, 25+ at N2), so opex rises too. Whether the migration pays depends on your yield learning rate.' }
+      { h: 'A new node resets the learning curve', p: 'D0 starts several times higher than on the mature node and comes down only with wafers run. The wafer sells for more (~$18–20k at N3, ~$30k at N2) and takes more EUV layers (20+ at N3, 25+ at N2), so opex rises too. Whether the migration pays depends on your yield learning rate.' },
+      { h: 'SRAM stopped shrinking', p: 'Logic keeps scaling; the SRAM bit cell barely has since N5 (0.021 µm² on N2). A die that is half cache scales worse than the library number, which is why large caches move to separate dies and why the 50–70% real-chip figure keeps falling.' }
     ],
     build: { fig: 'm11/8-node-timeline-sram-and-design-co-optimization', mode: 'order' },
     commission: [{ widget: 'node-table' }, { widget: 'moores-law' }], certify: { modules: [11, 20], n: 2 },
@@ -189,7 +194,8 @@ SG.MISSIONS = {
   'node-n2': {
     title: 'Migrate the fab to N2', node: true, cost: 5000000000, brief: [
       { h: 'Nanosheets and backside power', p: 'N2 replaces fins with stacked nanosheets so the gate wraps the channel on all four sides; A16 adds backside power delivery so the crowded front-side metal carries only signals. Wafer price ~$30k; a good 800 mm² die costs ~$1,000 at 45% yield.', fig: 'm11/8-node-timeline-sram-and-design-co-optimization' },
-      { h: 'High-NA on the horizon', p: 'The EXE:5000/5200 raises NA to 0.55 with anamorphic optics and half the field size, ~16 nm pitch in a single exposure, at ~$380M a tool. Depth of focus shrinks with NA², so wafers must be flatter still.' }
+      { h: 'High-NA on the horizon', p: 'The EXE:5000/5200 raises NA to 0.55 with anamorphic optics and half the field size, ~16 nm pitch in a single exposure, at ~$380M a tool. Depth of focus shrinks with NA², so wafers must be flatter still.' },
+      { h: 'Cost per transistor stopped falling', p: 'N5 → N3E: wafer price ×1.15, density ×1.5, cost per transistor down ~25%. N3E → N2: price ×1.58, density ×1.16, cost per transistor up ~30–35%. Migrate for performance, power and density, not for cheaper transistors; that is why only products with billions in revenue use the leading node.' }
     ],
     build: { fig: 'm08/the-wafer-side', mode: 'order' },
     commission: [{ widget: 'euv-stochastics' }, { widget: 'wafer-price' }], certify: { modules: [8, 11, 20], n: 2 },

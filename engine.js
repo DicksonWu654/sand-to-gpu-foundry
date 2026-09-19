@@ -252,7 +252,7 @@
 
   // ---------- formatting ----------
   function fmt$(x) { const a = Math.abs(x); const s = x < 0 ? '−$' : '$'; if (a >= 1e9) return s + (a / 1e9).toFixed(2) + 'B'; if (a >= 1e6) return s + (a / 1e6).toFixed(2) + 'M'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'k'; return s + a.toFixed(0); }
-  function fmtN(x) { const a = Math.abs(x); if (a >= 1e9) return (x / 1e9).toFixed(2) + 'B'; if (a >= 1e6) return (x / 1e6).toFixed(2) + 'M'; if (a >= 1e4) return (x / 1e3).toFixed(1) + 'k'; if (a >= 100) return x.toFixed(0); if (a >= 10) return x.toFixed(1); return x.toFixed(2); }
+  function fmtN(x) { const a = Math.abs(x); if (a >= 1e9) return (x / 1e9).toFixed(2) + 'B'; if (a >= 1e6) return (x / 1e6).toFixed(2) + 'M'; if (a >= 1e4) return (x / 1e3).toFixed(1) + 'k'; if (a >= 10) return x.toFixed(0); if (a >= 1) return x.toFixed(1); if (a < 0.005) return '0'; return x.toFixed(2); }
   function pct(x) { return (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%'; }
   function log(text, cls) { S.log.unshift({ day: Math.floor(S.day), text, cls }); if (S.log.length > 80) S.log.pop(); renderLog(); }
 
@@ -391,13 +391,15 @@
   function openStudyHall() {
     const mods = Object.keys(QUIZ).map(Number).sort((a, b) => a - b);
     const total = mods.reduce((a, m) => a + QUIZ[m].questions.length, 0); const done = Object.keys(S.answered).length;
+    const frac = total ? done / total : 0; const C = 2 * Math.PI * 34;
+    const ring = el('div', { class: 'pring', html: `<svg viewBox="0 0 84 84"><circle cx="42" cy="42" r="34" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/><circle cx="42" cy="42" r="34" fill="none" stroke="#5fd6a3" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(frac * C).toFixed(1)} ${C.toFixed(1)}"/></svg><b>${Math.round(frac * 100)}%</b>` });
     modal(el('div', null,
       el('div', { class: 'tag' }, 'STUDY HALL'), el('h2', null, 'Research grants for learning'),
-      el('p', null, `Every first-time correct answer pays a grant (${fmt$(grantAmount())} right now) and adds 0.5% to the knowledge multiplier on all revenue (now ×${knowledgeMult().toFixed(3)}). ${done}/${total} questions answered. Pick a module:`),
-      el('div', { class: 'modgrid' }, mods.map(m => {
-        const q = QUIZ[m]; const c = q.questions.filter((_, i) => S.answered[m + ':' + i]).length;
-        return el('button', { class: 'chip' + (c === q.questions.length ? ' done' : ''), onclick: () => quizGate('Study: Module ' + String(m).padStart(2, '0'), [m], q.questions.length, () => { toast('Module complete', 'You answered every question in Module ' + String(m).padStart(2, '0') + '.'); save(); }, grantAmount) },
-          `${String(m).padStart(2, '0')} ${q.file.replace(/^\d+-/, '').replace(/-/g, ' ')} (${c}/${q.questions.length})`);
+      el('div', { class: 'study-head' }, ring, el('p', null, `${done} of ${total} questions answered. Every first-time correct answer pays a grant (${fmt$(grantAmount())} right now) and adds 0.5% to the knowledge multiplier on all revenue, now ×${knowledgeMult().toFixed(3)}. Pick a module; each cell fills as you clear it.`)),
+      el('div', { class: 'study-grid' }, mods.map(m => {
+        const q = QUIZ[m]; const c = q.questions.filter((_, i) => S.answered[m + ':' + i]).length; const p = Math.round(100 * c / q.questions.length);
+        return el('button', { class: 'study-cell' + (c === q.questions.length ? ' done' : ''), style: '--p:' + p + '%', onclick: () => quizGate('Study: Module ' + String(m).padStart(2, '0'), [m], q.questions.length, () => { toast('Module complete', 'You answered every question in Module ' + String(m).padStart(2, '0') + '.'); save(); }, grantAmount) },
+          el('b', null, 'MODULE ' + String(m).padStart(2, '0')), el('span', null, q.file.replace(/^\d+-/, '').replace(/-/g, ' ')), el('small', null, `${c}/${q.questions.length}`));
       }))
     ), { wide: true });
   }
@@ -414,21 +416,41 @@
     ), { wide: true });
   }
   function openFabFloor() {
-    const rows = REQUIRED_BAYS.concat(OPTIONAL_BAYS).map(id => {
+    const order = ['bay-clean', 'bay-oxdep', 'bay-litho', 'bay-etch', 'bay-implant', 'bay-feol', 'bay-beol', 'bay-metro'];
+    const floor = el('div', { class: 'floor' });
+    order.forEach((id, i) => {
       const M = SG.MISSIONS[id]; const done = !!S.bays[id]; const req = REQUIRED_BAYS.includes(id);
-      return el('div', { class: 'bay-row' + (done ? ' done' : '') },
-        el('div', null, el('b', null, M.title), ' ', el('span', { class: 'tag' }, req ? 'REQUIRED' : 'OPTIONAL · +10% fab throughput'), el('div', { class: 'small muted' }, M.brief[0].p.slice(0, 160) + '…')),
-        done ? el('span', { class: 'ok' }, '✓ commissioned' + (S.missions[id] ? ` (${S.missions[id].targets}/${S.missions[id].targetsTotal} targets)` : '')) : el('button', { class: 'btn primary', disabled: S.cash < M.cost ? '' : null, onclick: () => { if (S.cash < M.cost) return; runMission(id, results => { S.cash -= M.cost; S.stats.capex += M.cost; S.bays[id] = true; applyMissionBonus('fab', results, true); log('Commissioned ' + M.title + ' for ' + fmt$(M.cost), 'build'); toast('✅ Bay commissioned', M.title); buildChain(); save(); openFabFloor(); }); } }, 'Commission · ' + fmt$(M.cost)));
+      const tile = el('div', { class: 'bay-tile' + (done ? ' done' : '') + (req ? ' req' : ' opt'), 'data-bay': id },
+        el('span', { class: 'bay-n' }, 'BAY ' + (i + 1) + ' · ' + (req ? 'REQUIRED' : 'OPTIONAL · +10%')),
+        el('b', null, M.title.replace(/ bay.*$/i, '').replace(/^Cleanroom & AMHS$/, 'Cleanroom & AMHS')),
+        el('span', { class: 'small' }, (M.commission || []).map(c => c.widget.replace(/-/g, ' ')).join(' · ')),
+        done ? el('span', { class: 'ok small' }, ic('check'), 'commissioned' + (S.missions[id] ? ` · ${S.missions[id].targets}/${S.missions[id].targetsTotal} targets` : ''))
+          : el('button', { class: 'btn primary small', disabled: S.cash < M.cost ? '' : null, onclick: () => { if (S.cash < M.cost) return; runMission(id, results => { S.cash -= M.cost; S.stats.capex += M.cost; S.bays[id] = true; applyMissionBonus('fab', results, true); log('Commissioned ' + M.title + ' for ' + fmt$(M.cost), 'build'); toast('✅ Bay commissioned', M.title); buildChain(); save(); openFabFloor(); }); } }, 'Commission · ' + fmt$(M.cost)));
+      floor.append(tile);
+    });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'route'); floor.append(svg);
+    requestAnimationFrame(() => {
+      const fr = floor.getBoundingClientRect(); if (!fr.width) return;
+      const pts = REQUIRED_BAYS.map(id => floor.querySelector('.bay-tile[data-bay="' + id + '"]')).filter(Boolean).map(t => { const r = t.getBoundingClientRect(); return [r.left - fr.left + r.width / 2, r.top - fr.top + r.height / 2]; });
+      svg.setAttribute('viewBox', `0 0 ${fr.width} ${fr.height}`);
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ')); svg.append(p);
     });
     modal(el('div', null, el('div', { class: 'tag' }, 'FAB FLOOR · Modules 05–13'), el('h2', null, 'The eight bays'),
-      el('p', null, `A fab is a floor of tool bays that every wafer visits dozens of times. The six process bays must be commissioned before the first wafer moves (${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6 done). Each bay is its own mission; targets reached in the bays lower your killer-defect density permanently.`),
-      el('div', null, rows)), { wide: true });
+      el('p', null, `A fab is a floor of tool bays that every wafer visits dozens of times; the dashed route is the wafer's path through the six process bays. They must all be commissioned before the first wafer moves (${REQUIRED_BAYS.filter(b => S.bays[b]).length}/6 done). Each bay is its own mission; targets reached in the bays lower your killer-defect density permanently.`),
+      floor), { wide: true });
   }
   function openNodeMigration() {
     const order = ['N5', 'N3', 'N2']; const cur = order.indexOf(S.node); const nextNode = order[cur + 1];
     const id = nextNode === 'N3' ? 'node-n3' : nextNode === 'N2' ? 'node-n2' : null;
-    const body = el('div', null, el('div', { class: 'tag' }, 'PROCESS NODE · Modules 11, 20'), el('h2', null, 'Current node: ' + S.node),
-      el('p', null, `Finished wafers sell for ${fmt$(S.nodeFx.waferPrice)}, fab opex is ${fmt$(S.nodeFx.opex)} per wafer, and your GPU's silicon is worth ×${S.nodeFx.density} per mm² versus N5. D0 on this node: ${currentD0().toFixed(3)}/cm² after ${fmtN(S.wafersRun)} wafers.`));
+    const stops = [['N5', 16000, 1], ['N3', 19000, 1.35], ['N2', 30000, 1.7]];
+    const timeline = el('div', { class: 'timeline' }, stops.map(([n, price, dens], i) => el('div', { class: 'tl-stop' + (i < cur ? ' done' : i === cur ? ' cur' : '') }, el('div', { class: 'tl-dot' }), el('b', null, n), el('span', { class: 'small' }, `${fmt$(price)}/wafer · silicon ×${dens}`))));
+    // the yield learning curve on this node: D0 = 0.05 + 0.45·e^(−wafers/20,000)
+    const W = 600, H = 150, pad = 30; const xs = w => pad + (w / 100000) * (W - pad - 10); const ys = d => H - 22 - (d / 0.5) * (H - 40);
+    let d = ''; for (let w = 0; w <= 100000; w += 2000) d += (w ? 'L' : 'M') + xs(w).toFixed(1) + ' ' + ys(0.05 + 0.45 * Math.exp(-w / 20000)).toFixed(1);
+    const cx = xs(Math.min(100000, S.wafersRun)), cy = ys(currentD0());
+    const curve = el('div', { html: `<svg class="curve" viewBox="0 0 ${W} ${H}"><path d="M${pad} ${H - 22}H${W - 10}" stroke="#34445a" stroke-width="1"/><path d="M${pad} ${ys(0.5)}V${H - 22}" stroke="#34445a" stroke-width="1"/><path d="${d}" fill="none" stroke="#62b1e0" stroke-width="2.5"/><path d="M${pad} ${ys(0.1)}H${W - 10}" stroke="#5fd6a3" stroke-width="1" stroke-dasharray="4 4"/><text x="${pad + 8}" y="${ys(0.1) - 5}" fill="#5fd6a3" font-size="10" font-family="JetBrains Mono, monospace">mature D0 ≈ 0.1</text><circle cx="${cx}" cy="${cy}" r="6" fill="#f3cd6e"/><text x="${cx > W * 0.6 ? cx - 12 : cx + 12}" y="${cy - 14}" fill="#f3cd6e" font-size="11" text-anchor="${cx > W * 0.6 ? 'end' : 'start'}" font-family="JetBrains Mono, monospace">you: ${currentD0().toFixed(3)} after ${fmtN(S.wafersRun)} wafers</text><text x="${pad}" y="${H - 6}" fill="#8d9aab" font-size="10" font-family="JetBrains Mono, monospace">0</text><text x="${W - 10}" y="${H - 6}" fill="#8d9aab" font-size="10" text-anchor="end" font-family="JetBrains Mono, monospace">100k wafers run on this node</text><text x="${pad + 4}" y="${ys(0.5) + 10}" fill="#8d9aab" font-size="10" font-family="JetBrains Mono, monospace">D0 0.5/cm²</text></svg>` });
+    const body = el('div', null, el('div', { class: 'tag' }, 'PROCESS NODE · Modules 11, 20'), el('h2', null, 'Current node: ' + S.node), timeline, curve,
+      el('p', null, `Finished wafers sell for ${fmt$(S.nodeFx.waferPrice)}, fab opex is ${fmt$(S.nodeFx.opex)} per wafer, and your GPU's silicon is worth ×${S.nodeFx.density} per mm² versus N5. Every node starts its own learning curve: D0 falls only with wafers run on it.`));
     if (!id) body.append(el('p', { class: 'ok' }, 'You are on the leading node. Push D0 down and redesign for it.'));
     else {
       const M = SG.MISSIONS[id];
@@ -459,10 +481,10 @@
   function objective() {
     if (!S.st.mine.on) return { text: 'Commission the quartz mine (free). It is the tutorial.', pct: 0 };
     const nextLocked = SG.STATIONS.find(s => !S.st[s.id].on);
-    if (S.st.fab.on && !baysReady()) { const done = REQUIRED_BAYS.filter(b => S.bays[b]).length; const next = REQUIRED_BAYS.find(b => !S.bays[b]); const M = SG.MISSIONS[next]; return { text: `Commission the fab bays (${done}/6). Next: ${M.title} for ${fmt$(M.cost)}.`, pct: Math.min(1, S.cash / M.cost), sub: `${fmt$(S.cash)} / ${fmt$(M.cost)}` }; }
-    if (nextLocked) return { text: `${nextLocked.oneShot ? 'Tape out a design at the' : 'Commission the'} ${nextLocked.name} for ${fmt$(nextLocked.cost)}.`, pct: Math.min(1, S.cash / Math.max(1, nextLocked.cost)), sub: `${fmt$(S.cash)} / ${fmt$(nextLocked.cost)}` };
-    const worst = SG.STATIONS.filter(s => S.st[s.id].on && flow[s.id] && flow[s.id].util >= 0.98).pop();
-    if (S.node !== 'N2') { const id = S.node === 'N5' ? 'node-n3' : 'node-n2'; const M = SG.MISSIONS[id]; return { text: `Chain complete. Keep racks shipping; migrate to ${M.effect.node} for ${fmt$(M.cost)}${worst ? ` (bottleneck now: ${worst.name})` : ''}.`, pct: Math.min(1, S.cash / M.cost), sub: `${fmt$(S.cash)} / ${fmt$(M.cost)}` }; }
+    const sub = cost => `${fmt$(Math.min(S.cash, cost))} / ${fmt$(cost)}`;
+    if (S.st.fab.on && !baysReady()) { const done = REQUIRED_BAYS.filter(b => S.bays[b]).length; const next = REQUIRED_BAYS.find(b => !S.bays[b]); const M = SG.MISSIONS[next]; return { text: `${M.title} · ${fmt$(M.cost)} — fab bays ${done}/6 commissioned.`, pct: Math.min(1, S.cash / M.cost), sub: sub(M.cost) }; }
+    if (nextLocked) return { text: `${nextLocked.name} · ${fmt$(nextLocked.cost)} — ${nextLocked.oneShot ? 'tape out a design' : 'commission it'}.`, pct: Math.min(1, S.cash / Math.max(1, nextLocked.cost)), sub: sub(nextLocked.cost) };
+    if (S.node !== 'N2') { const id = S.node === 'N5' ? 'node-n3' : 'node-n2'; const M = SG.MISSIONS[id]; return { text: `Migrate to ${M.effect.node} · ${fmt$(M.cost)} — racks are shipping; keep the chain fed.`, pct: Math.min(1, S.cash / M.cost), sub: sub(M.cost) }; }
     return { text: 'Leading edge reached. Push D0 down, finish the Study Hall, collect every achievement.', pct: Object.keys(S.answered).length / 176, sub: Object.keys(S.answered).length + '/176 questions' };
   }
 
@@ -474,17 +496,17 @@
       const st = S.st[s.id]; const on = st.on; const color = SG.STAGE_COLORS[s.id] || '#5fa8d3';
       const card = el('div', { class: 'station ' + (on ? 'on' : 'locked') + (s.parallel ? ' parallel' : ''), 'data-id': s.id, style: '--c:' + color });
       const modLabel = s.modules.length > 3 ? 'Modules ' + String(s.modules[0]).padStart(2, '0') + '–' + String(s.modules[s.modules.length - 1]).padStart(2, '0') : 'Module' + (s.modules.length > 1 ? 's ' : ' ') + s.modules.map(m => String(m).padStart(2, '0')).join(', ');
-      card.append(el('div', { class: 'st-top' }, el('div', { class: 'st-title' }, el('div', { class: 'st-name' }, s.name), el('div', { class: 'st-stage' }, 'Stage ' + s.stage + ' · ' + modLabel)),
-        on && !s.oneShot ? el('span', { class: 'lvl' }, 'L' + st.level + (tier(s) ? ' · T' + tier(s) : '')) : (on ? el('span', { class: 'lvl' }, 'built') : el('span', { class: 'lvl locked' }, 'locked'))));
+      const topRow = el('div', { class: 'st-top' }, el('div', { class: 'st-title' }, el('div', { class: 'st-name' }, s.name), el('div', { class: 'st-stage' }, 'Stage ' + s.stage + ' · ' + modLabel)));
+      const lvlPill = on && !s.oneShot ? el('span', { class: 'lvl' }, 'L' + st.level + (tier(s) ? ' · T' + tier(s) : '')) : (on ? el('span', { class: 'lvl' }, 'built') : el('span', { class: 'lvl locked' }, 'locked'));
       // illustration: the course's apparatus scene or glyph, clickable for a manual shift
       const icon = el('button', { class: 'st-art', title: on ? 'Run a manual shift' : 'Locked', onclick: () => manualShift(s, icon) });
       const art = SG.STATION_ART[s.id];
       if (art && art.scene && window.SG_SCENES && window.SG_SCENES[art.scene]) { const sc = window.SG_SCENES[art.scene]; icon.innerHTML = `<figure class="section-figure sf-scene"><div class="sf-drawing"><svg viewBox="${art.box || ('0 0 700 ' + sc.height)}" preserveAspectRatio="xMidYMid meet"><defs><marker id="${sc.marker}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 6 3 0 6" class="sf-arrowhead"/></marker></defs>${sc.art}</svg></div></figure>`; }
       else if (art && art.glyph && window.SG_GLYPHS && window.SG_GLYPHS[art.glyph]) { icon.innerHTML = `<figure class="section-figure"><div class="sf-drawing"><svg viewBox="-54 -49 108 98" class="glyph">${window.SG_GLYPHS[art.glyph]}</svg></div></figure>`; }
       else icon.textContent = s.icon;
-      if (!s.oneShot) icon.append(el('span', { class: 'ring' }, el('span', { html: '<svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" cx="22" cy="22" r="18"/></svg>' }), el('span', { class: 'ring-t' }, on ? '0%' : '')));
-      if (!on) icon.append(el('span', { class: 'lock-badge' }, ic('lock')));
-      card.append(icon);
+      icon.append(lvlPill);
+      if (!s.oneShot) icon.append(el('span', { class: 'ring' }, el('span', { html: '<svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" cx="22" cy="22" r="18"/></svg>' }), on ? el('span', { class: 'ring-t' }, '0%') : ic('lock')));
+      card.append(icon, topRow);
       if (!on) card.append(el('p', { class: 'st-short' }, s.short));
       if (s.parallel) card.append(el('div', { class: 'branch-note' }, 'Parallel branch: uses polished wafers, feeds CoWoS'));
       const status = el('div', { class: 'status' }); card.append(status);
@@ -497,9 +519,16 @@
       }
       const more = el('div', { class: 'more' });
       more.append(el('button', { class: 'btn ghost', title: 'Field guide', onclick: () => openGuide(s) }, ic('book'), 'Guide'));
-      if (on && s.lab && !s.oneShot) more.append(el('button', { class: 'btn ghost' + (S.labs[s.lab] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab].title, onclick: () => openLab(s.lab) }, ic('flask'), SG.LABS[s.lab].title));
-      if (on && s.lab2) more.append(el('button', { class: 'btn ghost' + (S.labs[s.lab2] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab2].title, onclick: () => openLab(s.lab2) }, ic('flask'), SG.LABS[s.lab2].title));
-      for (const p of SG.PUZZLES) if (on && p.station === s.id) more.append(el('button', { class: 'btn ghost' + (S.puzzles[p.id] ? ' done' : ''), title: 'Puzzle: ' + p.title, onclick: () => openPuzzle(p) }, ic('puzzle'), p.title.length > 22 ? p.title.slice(0, 20) + '…' : p.title));
+      const extras = [];
+      if (on && s.lab && !s.oneShot) extras.push(el('button', { class: 'btn ghost' + (S.labs[s.lab] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab].title, onclick: () => openLab(s.lab) }, ic('flask'), SG.LABS[s.lab].title));
+      if (on && s.lab2) extras.push(el('button', { class: 'btn ghost' + (S.labs[s.lab2] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab2].title, onclick: () => openLab(s.lab2) }, ic('flask'), SG.LABS[s.lab2].title));
+      for (const p of SG.PUZZLES) if (on && p.station === s.id) extras.push(el('button', { class: 'btn ghost' + (S.puzzles[p.id] ? ' done' : ''), title: 'Puzzle: ' + p.title, onclick: () => openPuzzle(p) }, ic('puzzle'), p.title));
+      if (extras.length >= 3) {
+        const pop = el('div', { class: 'popover' }, extras);
+        const toggle = el('button', { class: 'btn ghost', title: 'Labs and puzzles', onclick: e => { e.stopPropagation(); pop.classList.toggle('open'); } }, ic('flask'), `Labs & puzzles (${extras.length})`);
+        document.addEventListener('click', ev => { if (!pop.contains(ev.target) && ev.target !== toggle) pop.classList.remove('open'); });
+        more.append(toggle, pop);
+      } else extras.forEach(b => more.append(b));
       if (on && SG.missions && SG.EXPLORE && SG.EXPLORE[s.id]) more.append(el('button', { class: 'btn ghost', title: 'Interactives and figures', onclick: () => SG.missions.explore(s.id, missionCtx, { title: s.name + ': interactives and figures' }) }, ic('compass'), 'Explore'));
       card.append(actions, more);
       host.append(card);
@@ -522,7 +551,7 @@
         c.status.innerHTML = `<div class="bar save"><div class="fill" style="width:${Math.round(p * 100)}%"></div></div><div class="small ${ok ? 'ok' : 'muted'}">${ok ? 'Affordable. Play the commissioning mission.' : `Saving: ${fmt$(S.cash)} of ${fmt$(s.cost)} (${pct(p)})`}</div>`;
         const b = c.actions.querySelector('.unlock'); if (b) b.disabled = !ok; continue;
       }
-      if (s.oneShot) { c.status.innerHTML = S.design ? `<div class="small"><b>${S.design.name}</b>: ${S.design.n} × ${S.design.A} mm², ${S.design.h} HBM · ${S.design.model === 'poisson' ? 'Poisson' : S.design.model === 'murphy' ? 'Murphy' : 'negative binomial'} yield</div>` : '<div class="small warn">No design yet.</div>'; continue; }
+      if (s.oneShot) { c.status.innerHTML = S.design ? `<div class="small"><b>${S.design.name}</b>: ${S.design.n} × ${S.design.A} mm², ${S.design.h} HBM · ${S.design.model === 'poisson' ? 'Poisson' : S.design.model === 'murphy' ? 'Murphy' : 'negative binomial'} yield</div>` : '<div class="small warn">No design yet.</div>'; const d = $('#minimap .mm[data-id="' + s.id + '"]'); if (d) d.className = 'mm ' + (S.design ? 'on' : 'idle'); continue; }
       const f = flow[s.id]; const cap = capacity(s); const em = eventMult(s.id);
       const util = f ? f.util : 0; const fg = c.icon.querySelector('.ring-fg'); if (fg) { fg.style.strokeDasharray = `${(util * 113.1).toFixed(1)} 113.1`; } const rt = c.icon.querySelector('.ring-t'); if (rt) rt.textContent = pct(util);
       const ring = c.icon.querySelector('.ring'); if (ring) { ring.classList.toggle('ok', util >= 0.98); ring.classList.toggle('warn', !!(f && f.starved) || (util > 0 && util < 0.5)); }
@@ -530,13 +559,15 @@
       const mmDot = $('#minimap .mm[data-id="' + s.id + '"]'); if (mmDot) { mmDot.className = 'mm ' + (f && f.starved ? 'starved' : util > 0.02 ? 'on' : 'idle'); }
       let html = `<div class="st-rate"><b>${f ? fmtN(f.rate) : 0}</b><span class="muted">/ ${fmtN(cap)} per day</span><div class="util-bar"><i style="width:${Math.round(util * 100)}%"></i></div></div>`;
       const unitN = (r, v) => (['ingot', 'rack', 'gpu', 'pkg', 'hbm', 'die'].includes(r) ? fmtN(Math.floor(v)) : fmtN(v));
-      const ins = Object.entries(s.inputs).map(([r, q]) => { const cap = warehouseCap(r); const p = isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock"><span class="stock-name" style="color:${SG.RES[r].color}">${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${unitN(r, S.res[r])}<small> / ${isFinite(cap) ? fmtN(cap) : '∞'}</small></span></div>`; }).join('');
+      const ins = Object.entries(s.inputs).map(([r, q]) => { const cap = warehouseCap(r); const p = isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock${f && f.starved === SG.RES[r].name ? ' short' : ''}"><span class="stock-name" style="color:${SG.RES[r].color}">${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${unitN(r, S.res[r])}<small> / ${isFinite(cap) ? fmtN(cap) : '∞'}</small></span></div>`; }).join('');
       const outs = Object.entries(s.outputs).map(([r, q]) => { const cap = warehouseCap(r); const hasC = consumersOf(r).some(c => S.st[c.id].on); const p = hasC && isFinite(cap) && cap > 0 ? Math.min(1, S.res[r] / cap) : 0; return `<div class="stock out"><span class="stock-name" style="color:${SG.RES[r].color}">→ ${SG.RES_SHORT[r] || SG.RES[r].name}</span><div class="bar"><div class="fill" style="width:${Math.round(p * 100)}%;background:${SG.RES[r].color}"></div></div><span class="stock-n">${hasC ? unitN(r, S.res[r]) + '<small> / ' + fmtN(cap) + '</small>' : '<small>sells</small>'}</span></div>`; }).join('');
       html += `<div class="stocks">${ins}${outs}</div>`;
       let msg = '';
-      if (f && f.starved) msg = `<span class="warn">⏳ starved of ${f.starved}</span>`;
-      else if (f && f.blocked) msg = `<span class="warn">📦 warehouse full: ${f.blocked}</span>`;
-      else if (f && f.util >= 0.98) msg = `<span class="ok">⚡ running flat out</span>`;
+      const sv = n => `<svg class="ic"><use href="#i-${n}"/></svg>`;
+      if (f && f.starved) msg = `<span class="warn">${sv('hourglass')}starved of ${f.starved}</span>`;
+      else if (f && f.blocked) msg = `<span class="warn">${sv('box')}warehouse full: ${f.blocked}</span>`;
+      else if (f && f.util >= 0.98) msg = `<span class="ok">${sv('bolt')}running flat out</span>`;
+      else if (f && f.util > 0.02) msg = `<span class="muted">${sv('play')}running at ${pct(util)}</span>`;
       if (em < 1) msg += ` <span class="warn">event ×${em.toFixed(2)}</span>`;
       const extra = [];
       if (s.id === 'sort' && S.design) extra.push(`${diesPerWafer(S.design.A)} dies × ${pct(yieldModel(S.design.model || 'nb', S.design.A / 100, currentD0(), 3))} = ${fmtN(goodDiesPerWafer())} good/wafer`);

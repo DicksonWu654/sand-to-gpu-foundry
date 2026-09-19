@@ -36,7 +36,7 @@ SG.STATIONS = [
     short: 'Carbothermic reduction at ~2,000 °C: SiO₂ + 2C → Si + 2CO. Output is 98–99% silicon.',
     guide: {
       in: 'Quartz plus carbon (coal, charcoal, wood chips).', out: 'Metallurgical-grade silicon (MG-Si), ~98–99% pure, tapped as a liquid and cast into lumps.',
-      constraint: 'Carbon strips oxygen from SiO₂ at ~2,000 °C in a submerged-arc furnace. The reaction itself needs ~8 MWh per tonne of silicon; real furnaces consume 11–13 MWh/t, so this is an electricity business (Norway, Brazil, China).',
+      constraint: 'Carbon strips oxygen from SiO₂ at ~2,000 °C in a submerged-arc furnace. The reaction itself needs ~6.8 MWh per tonne of silicon; real furnaces consume 11–13 MWh/t, so this is an electricity business (Norway, Brazil, China).',
       numbers: ['SiO₂ + 2C → Si + 2CO', '~2 t of CO gas leaves per tonne of Si', '11–13 MWh per tonne; MG-Si sells for ~$2–3/kg', '98–99% purity: 7 orders of magnitude short of chip grade'],
       why: 'MG-Si is the feedstock for both solar and electronic polysilicon; most of it actually goes into aluminium alloys and silicones. Chips are a small, demanding customer.'
     }
@@ -68,7 +68,7 @@ SG.STATIONS = [
     cost: 8000000, rate: 6, inputs: { ingot: 1 }, outputs: { wafer: 'WPI' }, opex: 40000,
     short: 'Crop, grind, notch, diamond-wire saw, lap, etch, double-side polish, CMP, RCA clean, inspect.',
     guide: {
-      in: 'A rough single-crystal cylinder.', out: 'Polished 300 mm discs, 775 µm thick, flat to ~20 nm over each exposure site, with a surface clean to about one metal atom per million.',
+      in: 'A rough single-crystal cylinder.', out: 'Polished 300 mm discs, 775 µm thick, flat to ~20 nm over each exposure site, with fewer than 10¹⁰ metal atoms per cm² on the surface, one foreign atom per ~70,000 surface atoms.',
       constraint: 'Every mechanical step leaves damage that the next step must remove, and every downstream lithography step assumes the resulting flatness. Sawing turns ~150 µm of crystal per cut into dust (kerf), so a 2 m body gives roughly 1,900 slices before cropping losses, ~1,500 in this game.',
       numbers: ['Slice ~900 µm + ~150 µm kerf; finished 775 µm', 'Final CMP to < 0.1 nm RMS roughness', 'RCA clean: SC-1 (particles), HF (oxide), SC-2 (metals)', 'Inspection: flatness (SFQR), particles by laser scattering, metals by TXRF down to ~10⁹ atoms/cm²', 'Suppliers: Shin-Etsu, SUMCO, GlobalWafers, Siltronic, SK Siltron (Japan ~55–60% of supply)'],
       why: 'A prime 300 mm wafer costs on the order of $100–200; the fab will add ~$16–30k of value to it. The wafer is cheap; its flatness is not.'
@@ -81,7 +81,7 @@ SG.STATIONS = [
     guide: {
       in: 'A product specification.', out: 'A set of 70–100+ photomasks (one per patterned layer) and a test program.',
       constraint: 'Nothing downstream can be changed cheaply. A mask set costs ~$20–30M and a bug found after tape-out means a new one, so almost all design effort is verification: timing, IR drop, electromigration, DRC, LVS, antenna checks.',
-      numbers: ['Reticle field: 26 × 33 mm = 858 mm² at 0.33 NA; High-NA halves it to 26 × 16.5 mm', 'Blackwell: 2 × ~800 mm² dies, 208 B transistors, 8 × HBM3E, CoWoS-L', 'H100: TSMC 4N, 80 B transistors, 814 mm², 5 HBM3 on CoWoS-S', 'EUV mask blank: fused silica + 40 Mo/Si bilayers (Hoya, AGC); written by multi-beam e-beam'],
+      numbers: ['Reticle field: 26 × 33 mm = 858 mm² at 0.33 NA; High-NA halves it to 26 × 16.5 mm', 'Blackwell: 2 × ~800 mm² dies, 208 B transistors, 8 × HBM3E, CoWoS-L', 'H100: TSMC 4N, 80 B transistors, 814 mm², 5 HBM3 on CoWoS-S', 'EUV mask blank: low-thermal-expansion glass (ULE) + 40 Mo/Si bilayers (Hoya, AGC); written by multi-beam e-beam'],
       why: 'Die size is the single most consequential design decision for cost: dies per wafer fall with area and yield falls exponentially with area. The Design Studio lets you feel that trade-off, and changing the design later costs a new mask set.'
     }
   },
@@ -102,7 +102,7 @@ SG.STATIONS = [
     short: 'Probe every die hot and cold on ATE; program e-fuses to disable bad blocks; build the wafer map of known-good dies.',
     guide: {
       in: 'A finished wafer.', out: 'A wafer map: which dies work, at what speed, which spare blocks to disable. Known-good dies (KGD) go on to packaging.',
-      constraint: 'This is the last cheap place to find a bad die. A die that escapes here costs ~10× more to find at each later stage (the rule of ten). Yield itself is set by die area and killer-defect density D0: Poisson Y = e^(−A·D0), Murphy, or the industry-default negative binomial Y = (1 + A·D0/α)^(−α).',
+      constraint: 'This is the last cheap place to find a bad die. A die that escapes here costs ~10× more to find at each later stage (the rule of ten). Yield itself is set by die area and killer-defect density D0: Poisson Y = e^(−A·D0), Murphy, or the negative binomial Y = (1 + A·D0/α)^(−α) with a clustering parameter α of about 1–3.',
       numbers: ['800 mm² die at D0 = 0.1/cm²: Poisson ≈ 45%, Murphy ≈ 47%', 'D0: ~0.5/cm² at ramp, ~0.05–0.1 mature; it falls only as wafers are run and each defect mechanism is traced and removed', 'Probe cards (FormFactor), ATE (Advantest V93000, Teradyne)', 'Repair: a die with a few bad streaming multiprocessors becomes a lower SKU instead of scrap'],
       why: 'Your D0 improves with every wafer the fab runs (watch the header). That learning curve is why the foundry with the most wafers pulls further ahead each generation.'
     }
@@ -114,7 +114,7 @@ SG.STATIONS = [
     guide: {
       in: 'DRAM wafers on a 1β/1γ process, and a base logic die (made at TSMC for SK hynix and Micron HBM4).', out: 'A tested 8-, 12- or 16-high memory stack ~720 µm tall with ~1–2 TB/s through its bottom.',
       constraint: 'Compound yield. Every one of the 13 or 17 dies in a stack must be good, so the stack is only as good as the known-good-die test on each die: if each passed die is 98% likely to be truly good, a 12-high stack starts at 0.98¹³ ≈ 77% before any bonding loss; at 99% it is ≈ 88%.',
-      numbers: ['TSV: ~5–6 µm diameter, ~50 µm deep, via-middle', 'Die thickness ~30 µm (HBM3E); HBM4 16-high needs ~20–25 µm to fit the 720 µm JEDEC height', 'Microbump pitch ~40 µm; hybrid bonding for the tallest stacks', 'An HBM bit costs ~3× the wafer area of a DDR5 bit, which is why diverting wafers to HBM caused the 2025–26 DRAM shortage', 'HBM ~$15–20 per GB; shares (Q2 2026): SK hynix ~50%'],
+      numbers: ['TSV: ~5–6 µm diameter, ~50 µm deep, via-middle', 'Die thickness ~30 µm; HBM3E cap 720 µm, HBM4 cap 775 µm so 16-high still fits with microbumps', 'Microbump pitch ~40 µm; hybrid bonding for the tallest stacks', 'HBM takes ~2–3 wafers per DDR5 wafer-equivalent (larger dies, stack yield, a base die), which is why diverting wafers to HBM caused the 2025–26 DRAM shortage', 'HBM ~$15–20 per GB; shares (Q2 2026): SK hynix ~50%'],
       why: 'A GPU package needs 8 stacks, and stack yield decides whether your HBM plant feeds packaging or starves it. The HBM Stacker lab sets your stack height and test rigor.'
     }
   },
@@ -125,7 +125,7 @@ SG.STATIONS = [
     guide: {
       in: 'Bumped GPU dies, tested HBM stacks, an interposer wafer, a build-up substrate.', out: 'A finished GPU package: two dies and eight HBM stacks on one interposer on a ~90 × 90 mm substrate.',
       constraint: 'Size and warpage. The interposer is ~3.3 reticles across, larger than any single exposure, so its wiring is stitched; at reflow temperature the interposer, dies and mold expand at different rates (CTE mismatch) and corner microbumps can lift before the solder wets, a "non-wet" that passes at room temperature and fails hot.',
-      numbers: ['Microbump pitch ~40 µm over ~800 mm² per die; C4 bumps to the substrate are larger', 'CoWoS-S: silicon interposer with TSVs and 4–5 Cu RDL levels; CoWoS-L: silicon bridge dies embedded in a molded organic interposer', 'Hybrid bonding (SoIC): ~6–9 µm pitch today, ~1 µm roadmap, no solder', 'CoWoS capacity: ~35k wafers/month end-2024 → ~120–140k target end-2026, still ~10–20% short of demand', 'ABF (Ajinomoto): 100% of supply from one company'],
+      numbers: ['Microbump pitch ~40 µm over ~800 mm² per die; C4 bumps to the substrate are larger', 'CoWoS-S: silicon interposer with TSVs and 4–5 Cu RDL levels; CoWoS-L: silicon bridge dies embedded in a molded organic interposer', 'Hybrid bonding (SoIC): ~6–9 µm pitch today, ~1 µm roadmap, no solder', 'CoWoS capacity: ~35k wafers/month end-2024 → ~120–140k target end-2026, still ~10–20% short of demand', 'ABF (Ajinomoto): well over 90% of build-up film supply from one company'],
       why: 'From 2023 through 2026 the tightest constraint on AI accelerators was neither EUV nor wafers but this step and HBM. Watch this station become your bottleneck.'
     }
   },
@@ -161,13 +161,17 @@ SG.EVENTS = [
   { id: 'collector', title: 'EUV collector mirror contaminated', station: 'fab', mult: 0.8, days: 30,
     text: 'The tin plasma coats the collector that gathers the EUV light; when it degrades, a ~$200M scanner stops exposing. Because a wafer visits EUV 20–25 times, an outage anywhere in the fleet slows the whole fab. (Module 08.)' },
   { id: 'abf', title: 'ABF substrate shortage', station: 'cowos', mult: 0.6, days: 60, mitigatedBy: 'secondsource',
-    text: 'Ajinomoto Build-up Film is 100% of the world\'s supply of the dielectric in every build-up substrate. When substrate makers (Ibiden, Unimicron) cannot get enough, packaging stalls even though wafers are ready. (Modules 04, 16.)' },
+    text: 'Ajinomoto Build-up Film is well over 90% of the world\'s supply of the dielectric in every build-up substrate. When substrate makers (Ibiden, Unimicron) cannot get enough, packaging stalls even though wafers are ready. (Modules 04, 16.)' },
   { id: 'aiboom', title: 'AI capex boom: GPU prices spike', station: null, priceMult: { gpu: 1.5, pkg: 1.5, rack: 1.4 }, days: 90,
     text: 'Demand for accelerators outruns supply and the customer prepays years ahead. The fabless company\'s output is capped by whatever CoWoS and HBM capacity its suppliers allocate. (Module 00, money flow.)' },
   { id: 'hbmspike', title: 'HBM contract prices jump', station: null, priceMult: { hbm: 1.6 }, days: 90,
-    text: 'Memory makers divert DRAM wafer capacity to HBM, which needs ~3× the wafer area per bit; ordinary DRAM prices rise and HBM stays scarce. Your own HBM output is worth more if you sell it. (Modules 15, 20.)' },
+    text: 'Memory makers divert DRAM wafer capacity to HBM, which takes ~2–3 wafers per DDR5 wafer-equivalent; ordinary DRAM prices rise and HBM stays scarce. Your own HBM output is worth more if you sell it. (Modules 15, 20.)' },
   { id: 'export', title: 'New export-control rule', station: null, priceMult: { rack: 0.8, gpu: 0.85 }, days: 90,
     text: 'A rule restricts which markets can receive the top accelerator SKU, so part of the demand disappears until a compliant product is qualified. (Module 20: the October 2022, 2023 and 2024 rules.)' },
+  { id: 'water', title: 'Drought restriction on fab water', station: 'fab', mult: 0.85, days: 30,
+    text: 'A 300 mm wafer needs 6–9 m³ of ultrapure water (18.2 MΩ·cm, TOC below 1 ppb) and a fab draws millions of gallons a day. TSMC recycles ~90% in Taiwan and ~65% in Arizona; the reclaim rate is what a city permits a fab on. (Module 04)' },
+  { id: 'emvoid', title: 'Copper via-void excursion', station: 'fab', mult: 0.9, days: 20,
+    text: 'A copper via that plated with a small cavity passes sort, then current crowds around the void and electromigration grows it until the via opens months into service. Black\'s equation runs the qualification test hot: 110 → 300 °C is ~8,000× acceleration at Ea = 0.9 eV, so weeks stand in for years. The line slows while the plating bath is requalified. (Module 12)' },
   { id: 'resist', title: 'Photoresist batch out of spec', station: 'fab', mult: 0.85, days: 30, mitigatedBy: 'secondsource',
     text: 'Japan supplies ~90% of photoresist. A resist is not a commodity bought by specification; its batch behaviour is tuned into each layer\'s process window over months, so an off-spec batch means rework and a slower line. (Modules 04, 20.)' }
 ];
@@ -256,9 +260,10 @@ SG.RUSH = [
   { title: 'Hyperscaler prepayment', text: 'A cloud customer prepays for capacity two years out. Fabless companies prepay TSMC and the HBM makers the same way, because output is capped by whatever capacity suppliers allocate. (Module 00)', days: 3 },
   { title: 'Solar-grade poly spot spike', text: 'Polysilicon prices jump on the solar market; most polysilicon goes to solar, and the spot price swings several-fold across the cycle. (Module 01)', days: 2 },
   { title: 'Government subsidy tranche', text: 'A CHIPS Act-style grant lands. The US, EU, Japan and others subsidise fabs because a leading-edge fab costs $20–30B and depreciation alone is ~$5,000 per wafer at full load. (Module 20)', days: 4 },
-  { title: 'Memory contract renegotiated', text: 'DRAM and HBM contract prices rose several-fold from 2025 into 2026 as AI demand outran supply; a renegotiation pays off now. (Module 20)', days: 3 },
-  { title: 'Reclaim wafers sold', text: 'Test and monitor wafers are reclaimed, re-polished and sold; a wafer fab burns through thousands of monitor wafers a month. (Module 03)', days: 2 },
-  { title: 'Scrap silicon recovered', text: 'Kerf sludge, crown and tail sections and reject ingots go back to the melt or to the solar market; nothing with nine nines of purity is thrown away. (Module 03)', days: 2 }
+  { title: 'Memory contract renegotiated', text: 'DRAM contract prices rose 2–3× from late 2025 into 2026 as AI demand outran supply; a renegotiation pays off now. (Module 20)', days: 3 },
+  { title: 'Reclaim wafers sold', text: 'Test and monitor wafers are reclaimed, re-polished and sold; a fab burns 10–25% as many test wafers as product wafers, hundreds of thousands a month at a GigaFab. (Module 03)', days: 2 },
+  { title: 'Customer hot lot', text: 'An EUV scanner depreciates at ~$4,500 an hour whether or not it exposes, and depreciation is 35–55% of wafer cost in a fab\'s early years. A lot that fills an idle scanner is nearly free money. (Module 05)', days: 3 },
+  { title: 'Scrap silicon recovered', text: 'Crown, tail and reject ingots are etched clean and go back to the puller as remelt; kerf sludge, contaminated with nickel, iron and coolant, is lost to the chain. Roughly 15% of every ingot ends as dust. (Module 03)', days: 2 }
 ];
 
 // Achievements with permanent bonuses. check(S, ctx) returns true once earned.

@@ -138,9 +138,11 @@
       } else if (p === 'Build') {
         const spec = M.build; let finished = false;
         body.append(el('p', { class: 'muted' }, spec.scene ? 'Assemble the apparatus. Parts bin on the right; the drawing is the course\'s own.' : ''));
-        const done = r => { finished = true; results.mistakes += r ? r.mistakes || 0 : 0; nav.innerHTML = ''; nav.append(el('button', { class: 'btn primary', onclick: next }, 'Commission it →')); };
+        const cta = el('button', { class: 'btn primary', disabled: '', onclick: next }, 'Commission it →');
+        const skip = el('button', { class: 'btn link', onclick: () => { if (!finished) { results.skippedBuild = true; } next(); } }, 'Skip the build (no bonus)');
+        const done = r => { finished = true; results.mistakes += r ? r.mistakes || 0 : 0; cta.disabled = false; skip.remove(); };
         if (spec.scene) buildScene(spec, body, done); else buildOrder(spec, body, done, spec.mode);
-        nav.append(el('button', { class: 'btn ghost', onclick: () => { if (!finished) { results.skippedBuild = true; } next(); } }, 'Skip the build (no bonus)'));
+        nav.append(cta, skip);
       } else if (p === 'Commission') {
         const idx = phases.slice(0, phase).filter(x => x === 'Commission').length; const item = M.commission[idx];
         body.append(el('p', { class: 'muted' }, `Commission ${idx + 1} of ${M.commission.length}: tune the real thing.`));
