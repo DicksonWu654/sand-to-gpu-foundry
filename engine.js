@@ -723,7 +723,7 @@
       (function pan(now) { const k = Math.min(1, (now - t0) / 1400); wrap.scrollLeft = from * Math.pow(1 - k, 3); if (k < 1) requestAnimationFrame(pan); })(t0);
     }
     if (PARAMS.has('demo')) { if (PARAMS.get('speed') != null) S.speed = Number(PARAMS.get('speed')); openView(PARAMS.get('open')); }
-    else if (!S.log.length) { log('Welcome. You have a quartz claim and $300k. Build the chain from sand to a 72-GPU rack. Every station is a commissioning mission: brief, build it, tune the real thing, certify. Click a station icon to run a manual shift.', 'milestone'); showHelp(); }
+    else if (!S.log.length) { log('Welcome. You have a quartz claim and $60k. Build the chain from sand to a 72-GPU rack. Every station is a commissioning mission: brief, build it, tune the real thing, certify. Click a station icon to run a manual shift.', 'milestone'); showHelp(); }
     else offlineProgress();
     requestAnimationFrame(frame);
   }

@@ -1,6 +1,6 @@
 # Sand to GPU: Foundry
 
-**A production-chain game that teaches how a chip gets made.** Start with a quartz mine and $300k; build the real chain, station by station, to a 72-GPU rack: arc furnace, Siemens plant, crystal puller, wafering, design and masks, a fab with eight tool bays, wafer sort, HBM, CoWoS, final test, systems.
+**A production-chain game that teaches how a chip gets made.** Start with a quartz mine and $60k; build the real chain, station by station, to a 72-GPU rack: arc furnace, Siemens plant, crystal puller, wafering, design and masks, a fab with eight tool bays, wafer sort, HBM, CoWoS, final test, systems.
 
 Built from the [Sand to GPU](https://github.com/DicksonWu654/sand-to-gpu) course. The game reuses the course's own material: its 176 quiz questions, 292 authored figures, 17 apparatus drawings and 46 interactive widgets.
 

@@ -398,3 +398,8 @@ table.litho select { max-width: 240px; }
 .st-art .glyph.duo g:last-child .sf-object { opacity: .85; }
 @media (prefers-reduced-motion: reduce) { .belt-track::after, .station.running .st-art::after, .obj-tag.ready, .objective.ready::after, .rush, .scene-host.puzzle .sf-callout.open circle, .floor svg.route path { animation: none !important; } .floater { animation-duration: .01s; } }
 @media (max-width: 700px) { .rush { left: 12px !important; right: 12px; top: auto !important; bottom: 84px; align-items: center; } }
+
+/* ---------- aligned card bottoms: every card stretches to the tallest, buttons pin to the base ---------- */
+.chain { align-items: stretch; }
+.station .actions { margin-top: auto; }
+.station .more { margin-top: 0; }
