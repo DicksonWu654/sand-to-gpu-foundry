@@ -17,6 +17,8 @@ You never have to read a chapter first. Every station is a **commissioning missi
 
 Then the factory loop takes over: find the bottleneck (every card shows net $/day, what it is starved of, and what it is dumping on the spot market), upgrade where the payback is shortest, click a station to run a manual shift, take contracts with deadlines, earn achievements, migrate the fab to a new node and watch the yield-learning curve restart. Every quiz question you answer right on the first try, anywhere, adds 0.5% to all revenue forever and pays a research grant scaled to your next goal.
 
+Ten shift assignments reward the journey from your first mine to your first rack. Eight productive manual shifts charge a **Power shift**: activate it for +35% capacity across the line for 20 game days. Time it around a contract or a production bottleneck; extra capacity still needs inputs and pays operating costs. Working during a boost cannot recharge it. Chapter navigation takes you directly to each part of the factory.
+
 The game's text, targets and formulas were fact-checked against the course module by module; the economy was tuned with a simulation so that the chain is always worth extending (no station makes the line lose money, and the fab has to be upgraded to feed packaging).
 
 ## Run it
@@ -26,6 +28,8 @@ npm start
 ```
 
 Open http://127.0.0.1:8791/. No dependencies; any static file server works too. Progress is saved in the browser.
+
+`npm test` checks assignment payouts, save compatibility, and Power shift timing. `npm run build` copies the public game assets into `dist/` for static hosting, including ChatGPT Sites. `.openai/hosting.json` binds this checkout to its Site. Existing saves migrate automatically; progress stays local to each browser and site origin.
 
 ## Update from the course
 

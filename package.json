@@ -1,6 +1,6 @@
 {
   "name": "sand-to-gpu-foundry",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Sand to GPU: Foundry — a production-chain game that teaches the semiconductor supply chain, built from the Sand to GPU course.",
   "private": true,
   "license": "MIT",
@@ -8,6 +8,8 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "start": "node serve.js",
+    "build": "node tools/build-static.js",
+    "test": "node --test tests/operations.test.js",
     "sync": "node tools/sync-course.js"
   }
 }

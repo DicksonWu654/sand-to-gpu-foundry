@@ -50,6 +50,9 @@ Warehouse caps are 30 days of live downstream consumption (90 with the inventory
 
 ## The fun layer (idle-game mechanics)
 
+- **Shift assignments.** Ten optional, sequential one-time rewards, from commissioning the mine to shipping a rack. Completed tasks wait for the player to claim; `operations.js` owns eligibility and payouts. Retries do not count toward the research task.
+- **Power shift.** Eight productive manual clicks charge a player-triggered 35% capacity boost for 20 game days. Input limits and opex still apply. Failed clicks do not charge it, active boosts cannot recharge, and saved boosts expire against game time, including offline simulation. New fields default safely on existing v1 saves.
+- **Floor navigation.** Four chapter buttons, keyboard-accessible station markers, and rail arrows move through the production line. New players see a short introduction with a direct mine commissioning action.
 - **Manual shifts.** Click a station's icon to run 10% of a day's output instantly, limited by inputs and warehouse room. Floating "+n units" and "+$" texts show what happened.
 - **Rush orders.** After the furnace is built, a golden-cookie-style button appears every 60–150 days for 14 seconds; clicking it pays a few days of income and shows a one-paragraph lesson (prepayments, subsidies, reclaim wafers, the memory price cycle).
 - **Automation tiers.** Every fifth level of a station is a tier worth +25% throughput.

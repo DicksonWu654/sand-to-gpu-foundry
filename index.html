@@ -12,7 +12,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23131a24'/%3E%3Crect x='10' y='10' width='12' height='12' rx='2' fill='none' stroke='%2362b1e0' stroke-width='2'/%3E%3Cpath d='M5 13h5M5 19h5M22 13h5M22 19h5M13 5v5M19 5v5M13 22v5M19 22v5' stroke='%23f3cd6e' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=optional">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=optional">
 <link rel="stylesheet" href="course/section-figures.css">
 <link rel="stylesheet" href="game.css">
 </head>
@@ -72,7 +72,18 @@
 </div>
 
 <main>
-  <section class="chain-wrap"><div id="chain" class="chain"></div></section>
+  <div class="floor-heading"><div><span class="eyebrow">QUARTZ → COMPUTE</span><h1>Production floor<span class="floor-state" id="floor-state">Ready to build</span></h1></div><div class="floor-controls"><span id="floor-count">0 / 12 online</span><button class="btn ghost" id="rail-prev" aria-label="Previous stations">←</button><button class="btn ghost" id="rail-next" aria-label="Next stations">→</button></div></div>
+  <nav class="chapter-nav" aria-label="Production stages">
+    <button data-stations="mine,furnace,siemens"><span>01</span> Raw materials <small>0 / 3</small></button>
+    <button data-stations="cz,wafering,design"><span>02</span> Silicon & design <small>0 / 3</small></button>
+    <button data-stations="fab,sort,hbm"><span>03</span> Fabrication <small>0 / 3</small></button>
+    <button data-stations="cowos,test,systems"><span>04</span> Packaging <small>0 / 3</small></button>
+  </nav>
+  <section class="chain-wrap" aria-label="Factory production line"><div id="chain" class="chain"></div></section>
+  <section class="operations" aria-label="Shift assignments and power shift">
+    <div class="assignment"><div class="assignment-number" id="assignment-number">01</div><div class="assignment-copy"><span class="eyebrow" id="assignment-label">SHIFT ASSIGNMENT</span><h2 id="assignment-title">Break ground</h2><p id="assignment-text">Commission your quartz mine.</p><div class="assignment-track"><div id="assignment-fill"></div></div></div><div class="assignment-action"><span id="assignment-progress"></span><button class="btn primary" id="assignment-action">Commission mine</button></div></div>
+    <div class="power-shift"><div class="power-title"><svg class="ic"><use href="#i-bolt"/></svg><b>Power shift</b><span id="power-count">0 / 8</span></div><div class="charge-cells" id="power-cells" aria-hidden="true"></div><p id="power-copy">8 productive clicks charge +35% capacity for 20 game days.</p><button class="btn" id="power-activate" disabled>Charge by working machines</button></div>
+  </section>
   <section class="panels">
     <div class="panel drawer">
       <div class="drawer-head"><span class="label">Control room</span><div id="ticker" class="ticker" aria-live="polite"></div>
@@ -88,6 +99,8 @@
   </section>
 </main>
 
+<footer class="game-footer"><span>Built from <a href="https://github.com/DicksonWu654/sand-to-gpu" target="_blank" rel="noopener">Sand to GPU</a> · Learn the real process. Play the factory.</span><span>Progress saves on this browser.</span></footer>
+
 <div id="modal" class="modal"></div>
 <div id="toasts" class="toasts"></div>
 
@@ -97,6 +110,7 @@
 <script src="missions.js"></script>
 <script src="labs.js"></script>
 <script src="mission-runner.js"></script>
+<script src="operations.js"></script>
 <script src="engine.js"></script>
 </body>
 </html>

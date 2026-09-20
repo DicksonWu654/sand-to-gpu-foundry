@@ -1,6 +1,7 @@
 // Sand to GPU: Foundry — game engine (state, simulation, missions, bonuses, UI).
 (function () {
   const SG = window.SG;
+  const Ops = SG.operations;
   const QUIZ = window.SAND_QUIZ || {};
   const SAVE_KEY = 'sand-to-gpu-foundry-v1';
   const ORDER = SG.STATIONS.map(s => s.id);
@@ -28,6 +29,7 @@
     const res = {}; for (const r of Object.keys(SG.RES)) res[r] = 0;
     return {
       v: 1, day: 0, cash: 60000, res, st, design: null, wafersRun: 0, contract: null, missed: {},
+      assignments: {}, shift: { charge: 0, until: 0, work: 0 },
       labs: {}, puzzles: {}, mitig: {}, events: [], log: [], milestones: {}, answered: {}, made: {},
       bays: {}, node: 'N5', nodeFx: { waferPrice: 16000, opex: 8000, density: 1 }, bonus: { thr: {}, d0: 0 }, missions: {},
       ach: {}, achMult: 0, lastSeen: Date.now(), nextRush: null,
@@ -127,7 +129,7 @@
   function capacity(s) {
     let c = s.rate * S.st[s.id].level * (1 + 0.25 * tier(s)) * eventMult(s.id) * puzzleBonus(s.id) * (1 + ((S.bonus && S.bonus.thr && S.bonus.thr[s.id]) || 0));
     if (s.id === 'fab') c *= 1 + 0.1 * OPTIONAL_BAYS.filter(b => S.bays[b]).length;
-    return c;
+    return c * Ops.multiplier(S);
   }
   function valueAdd(s) { let v = 0; for (const [r, q] of Object.entries(s.outputs)) v += resolveQty(q) * priceOf(r); for (const [r, q] of Object.entries(s.inputs)) v -= resolveQty(q) * priceOf(r); return v - stationOpex(s); }
   function netPerDay(s) { const f = flow[s.id]; return f ? f.rate * valueAdd(s) : 0; }
@@ -279,13 +281,16 @@
     if (!S.st[s.id].on || s.rate === 0) return;
     if (blocked(s)) { floatText(iconEl, 'blocked', 'bad'); return; }
     const r = produce(s, capacity(s) * 0.1, true);
-    S.stats.clicks = (S.stats.clicks || 0) + 1;
     if (r.cycles > 0.01) {
+      S.stats.clicks = (S.stats.clicks || 0) + 1;
+      const before = S.shift.charge; Ops.worked(S);
+      if (before < 8 && S.shift.charge === 8) toast('Power shift ready', 'Activate it for +35% capacity across your line. Keep enough inputs flowing.');
       const out = Object.entries(s.outputs)[0]; floatText(iconEl, '+' + fmtN(resolveQty(out[1]) * r.cycles) + ' ' + SG.RES[out[0]].unit, 'ok');
       iconEl.classList.remove('pulse'); void iconEl.offsetWidth; iconEl.classList.add('pulse');
       const belt = belts[s.id]; if (belt) { belt.classList.add('kick'); clearTimeout(belt._kick); belt._kick = setTimeout(() => belt.classList.remove('kick'), 450); }
     }
     else floatText(iconEl, r.starved ? 'no ' + r.starved : 'warehouse full', 'bad');
+    renderOperations();
   }
 
   // ---------- formatting ----------
@@ -298,7 +303,8 @@
   const modalRoot = () => $('#modal');
   function modal(content, opts) {
     const root = modalRoot(); root.innerHTML = '';
-    const box = el('div', { class: 'modal-box ' + ((opts && opts.wide) ? 'wide' : '') });
+    const box = el('div', { class: 'modal-box ' + ((opts && opts.wide) ? 'wide' : ''), role: 'dialog', 'aria-modal': 'true', tabindex: '-1' });
+    const heading = content.querySelector('h2'); if (heading) { heading.id = 'dialog-title'; box.setAttribute('aria-labelledby', heading.id); } else box.setAttribute('aria-label', 'Foundry mission');
     if (!(opts && opts.noClose)) box.append(el('button', { class: 'modal-x', onclick: closeModal, 'aria-label': 'Close' }, '×'));
     box.append(content); root.append(box); root.classList.add('open'); document.body.classList.add('modal-open');
     if (!lastFocus) lastFocus = document.activeElement;
@@ -388,6 +394,68 @@
     const card = cards[s.id]; if (card) { floatText(card.icon, 'L' + S.st[s.id].level, 'gold'); card.card.classList.remove('flash'); void card.card.offsetWidth; card.card.classList.add('flash'); }
     if (S.st[s.id].level % 5 === 0) { toast('⚙ Automation tier ' + tier(s), `${s.name} reached level ${S.st[s.id].level}: +25% throughput per tier.`); log(`${s.name} reached automation tier ${tier(s)}.`, 'ach'); }
     save(); buildChain(); const nc = cards[s.id]; if (nc) nc.card.classList.add('flash');
+  }
+
+  // ---------- shift assignments, active play, and factory navigation ----------
+  function focusStation(id, align) {
+    const c = cards[id]; if (!c) return;
+    c.card.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', inline: align || 'center', block: 'nearest' });
+    c.card.classList.remove('spotlight'); void c.card.offsetWidth; c.card.classList.add('spotlight');
+    const action = c.actions.querySelector('button:not(:disabled)') || c.icon;
+    action.focus({ preventScroll: true });
+  }
+  function renderOperations() {
+    const j = Ops.current(S); const done = Object.keys(S.assignments).length;
+    $('#assignment-number').textContent = j ? String(done + 1).padStart(2, '0') : '✓';
+    $('#assignment-label').textContent = `SHIFT ASSIGNMENT · ${Math.min(done + 1, Ops.jobs.length)} / ${Ops.jobs.length}`;
+    $('#assignment-title').textContent = j ? j.title : 'The whole chain is yours';
+    $('#assignment-text').textContent = j ? j.text : 'Keep improving yield, migrate your node, or master the Study Hall.';
+    const value = j ? Math.min(j.target, j.value(S)) : 1; const ready = j && value >= j.target;
+    $('#assignment-fill').style.width = (j ? 100 * value / j.target : 100) + '%';
+    $('#assignment-progress').textContent = j ? (ready ? 'Reward ready' : `${value} / ${j.target}`) + ' · +' + fmt$(j.reward) : 'All assignments completed';
+    const a = $('#assignment-action'); a.textContent = j ? (ready ? 'Claim ' + fmt$(j.reward) : j.action) : 'Open Study Hall';
+    a.classList.toggle('claim', !!ready); $('.assignment').classList.toggle('ready', !!ready);
+    const active = Ops.multiplier(S) > 1; const charge = S.shift.charge;
+    $('#power-count').textContent = active ? Math.ceil(S.shift.until - S.day) + ' days' : charge + ' / 8';
+    $('#power-cells').querySelectorAll('i').forEach((c, i) => c.classList.toggle('charged', active || i < charge));
+    $('#power-copy').textContent = active ? '+35% capacity. Inputs and operating costs still apply.' : '8 productive clicks charge +35% capacity for 20 game days.';
+    const p = $('#power-activate'); p.disabled = charge < 8 || active;
+    p.textContent = active ? 'Power shift running' : charge >= 8 ? 'Activate power shift' : 'Charge by working machines';
+    $('.power-shift').classList.toggle('charged', charge >= 8 || active);
+    document.body.classList.toggle('boosted', active);
+    $('#floor-count').textContent = SG.STATIONS.filter(s => S.st[s.id].on).length + ' / ' + SG.STATIONS.length + ' online';
+    $('#floor-state').textContent = modalRoot().classList.contains('open') || S.speed === 0 ? 'Paused' : !S.st.mine.on ? 'Ready to build' : active ? 'Power shift active' : 'Line running';
+    const next = SG.STATIONS.find(s => !S.st[s.id].on);
+    document.querySelectorAll('.chapter-nav button').forEach(b => {
+      const ids = b.dataset.stations.split(','); const n = ids.filter(id => S.st[id].on).length;
+      b.querySelector('small').textContent = n + ' / ' + ids.length;
+      b.classList.toggle('complete', n === ids.length); b.classList.toggle('current', !!next && ids.includes(next.id));
+    });
+    for (const s of SG.STATIONS) if (cards[s.id]) cards[s.id].card.classList.toggle('next-station', !!next && s.id === next.id);
+  }
+  function wireOperations() {
+    Ops.ensure(S);
+    for (let i = 0; i < 8; i++) $('#power-cells').append(el('i'));
+    $('#assignment-action').addEventListener('click', () => {
+      const j = Ops.current(S);
+      if (j && j.value(S) >= j.target) {
+        const earned = Ops.claim(S); if (!earned) return;
+        toast('Assignment complete: ' + earned.title, '+' + fmt$(earned.reward) + ' invested in your next step.');
+        log('Assignment complete: ' + earned.title + '. Reward ' + fmt$(earned.reward) + '.', 'ach');
+        floatText($('#assignment-action'), '+' + fmt$(earned.reward), 'gold'); save(); renderHeader(); renderOperations();
+      } else if (!j || !j.station) openStudyHall();
+      else if (j.id === 'first-station') unlock(byId.mine);
+      else focusStation(j.station);
+    });
+    $('#power-activate').addEventListener('click', () => {
+      if (!Ops.activate(S)) return;
+      toast('Power shift activated', '+35% capacity for 20 game days. Balance the line to turn capacity into output.');
+      save(); renderOperations();
+    });
+    document.querySelectorAll('.chapter-nav button').forEach(b => b.addEventListener('click', () => focusStation(b.dataset.stations.split(',')[0], 'start')));
+    for (const [id, dir] of [['rail-prev', -1], ['rail-next', 1]]) $( '#' + id).addEventListener('click', () => {
+      const wrap = $('.chain-wrap'); wrap.scrollBy({ left: dir * wrap.clientWidth * 0.85, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    });
   }
   function openGuide(s) {
     const g = s.guide;
@@ -577,9 +645,10 @@
       const more = el('div', { class: 'more' });
       more.append(el('button', { class: 'btn ghost', title: 'Field guide', onclick: () => openGuide(s) }, ic('book'), 'Guide'));
       const extras = [];
-      if (on && s.lab && !s.oneShot) extras.push(el('button', { class: 'btn ghost' + (S.labs[s.lab] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab].title, onclick: () => openLab(s.lab) }, ic('flask'), SG.LABS[s.lab].title));
-      if (on && s.lab2) extras.push(el('button', { class: 'btn ghost' + (S.labs[s.lab2] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab2].title, onclick: () => openLab(s.lab2) }, ic('flask'), SG.LABS[s.lab2].title));
-      for (const p of SG.PUZZLES) if (on && p.station === s.id) extras.push(el('button', { class: 'btn ghost' + (S.puzzles[p.id] ? ' done' : ''), title: 'Puzzle: ' + p.title, onclick: () => openPuzzle(p) }, ic('puzzle'), p.title));
+      const labNames = { cz: 'Crystal lab', litho: 'Litho lab', oxide: 'Oxide lab', hbm: 'HBM lab', test: 'Test lab' };
+      if (on && s.lab && !s.oneShot) extras.push(el('button', { class: 'btn ghost' + (S.labs[s.lab] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab].title, onclick: () => openLab(s.lab) }, ic('flask'), labNames[s.lab] || 'Lab'));
+      if (on && s.lab2) extras.push(el('button', { class: 'btn ghost' + (S.labs[s.lab2] ? ' done' : ''), title: 'Lab: ' + SG.LABS[s.lab2].title, onclick: () => openLab(s.lab2) }, ic('flask'), labNames[s.lab2] || 'Lab'));
+      for (const p of SG.PUZZLES) if (on && p.station === s.id) extras.push(el('button', { class: 'btn ghost' + (S.puzzles[p.id] ? ' done' : ''), title: 'Puzzle: ' + p.title, onclick: () => openPuzzle(p) }, ic('puzzle'), 'Challenge'));
       if (extras.length >= 3) {
         const pop = el('div', { class: 'popover' }, extras);
         const toggle = el('button', { class: 'btn ghost', title: 'Labs and puzzles', onclick: e => { e.stopPropagation(); pop.classList.toggle('open'); } }, ic('flask'), `Labs & puzzles (${extras.length})`);
@@ -597,7 +666,7 @@
       }
     });
     // minimap: one dot per station
-    const mm = $('#minimap'); if (mm) { mm.innerHTML = ''; SG.STATIONS.forEach(s => mm.append(el('span', { class: 'mm', 'data-id': s.id, style: '--c:' + (SG.STAGE_COLORS[s.id] || '#5fa8d3'), title: s.name, onclick: () => { const c = cards[s.id]; if (c) c.card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } }))); }
+    const mm = $('#minimap'); if (mm) { mm.innerHTML = ''; SG.STATIONS.forEach(s => mm.append(el('button', { class: 'mm', 'aria-label': 'Go to ' + s.name, 'data-id': s.id, style: '--c:' + (SG.STAGE_COLORS[s.id] || '#5fa8d3'), title: s.name, onclick: () => focusStation(s.id) }))); }
     renderResources(true); renderSide();
   }
   function updateChain() {
@@ -696,7 +765,7 @@
     const speed = S.speed == null ? 1 : S.speed;
     if (speed > 0 && !modalRoot().classList.contains('open')) { let remaining = dtReal * speed; while (remaining > 1e-6) { const h = Math.min(0.1, remaining); tick(h); remaining -= h; } }
     acc += dtReal; acc2 += dtReal;
-    if (acc > 0.25) { acc = 0; renderHeader(); updateChain(); renderResources(false); }
+    if (acc > 0.25) { acc = 0; renderHeader(); updateChain(); renderResources(false); renderOperations(); }
     if (acc2 > 1.0) { acc2 = 0; checkAchievements(); flushFloaters(); }
     requestAnimationFrame(frame);
   }
@@ -704,26 +773,29 @@
 
   // ---------- wiring ----------
   function init() {
+    wireOperations();
+    if (PARAMS.has('speed') && [0, 1, 3, 10].includes(Number(PARAMS.get('speed')))) S.speed = Number(PARAMS.get('speed'));
     $('#btn-study').addEventListener('click', openStudyHall);
     $('#btn-risk').addEventListener('click', openRisk);
     $('#btn-help').addEventListener('click', showHelp);
     $('#btn-reset').addEventListener('click', () => { if (confirm('Start over? This wipes your save.')) { S = freshState(); localStorage.removeItem(SAVE_KEY); buildChain(); renderLog(); } });
     $('#speed').addEventListener('change', e => { S.speed = Number(e.target.value); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && modalRoot().classList.contains('open')) { e.preventDefault(); closeModal(); } });
+    document.addEventListener('keydown', e => {
+      if (!modalRoot().classList.contains('open')) return;
+      if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+      if (e.key === 'Tab') {
+        const focusable = Array.from(modalRoot().querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), iframe, [tabindex="0"]')).filter(n => n.getClientRects().length);
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (!first) { e.preventDefault(); modalRoot().querySelector('.modal-box').focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
     $('#speed').value = String(S.speed == null ? 1 : S.speed);
     document.querySelectorAll('.side-tab').forEach(t => t.addEventListener('click', () => { document.querySelectorAll('.side-tab').forEach(x => x.classList.toggle('sel', x === t)); document.querySelectorAll('.side-pane').forEach(p => p.classList.toggle('show', p.id === t.dataset.pane)); }));
-    buildChain(); renderLog(); renderHeader();
-    // establishing shot: pan from the rack end of the line back to the mine
-    const wrap = $('.chain-wrap');
-    let panned = false; try { panned = sessionStorage.getItem('sg-panned') === '1'; } catch (e) {}
-    const reduce = matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (wrap && !PARAMS.has('open') && !panned && !reduce && !document.hidden && wrap.scrollWidth > wrap.clientWidth + 40) {
-      try { sessionStorage.setItem('sg-panned', '1'); } catch (e) {}
-      const from = wrap.scrollWidth - wrap.clientWidth; wrap.scrollLeft = from; const t0 = performance.now();
-      (function pan(now) { const k = Math.min(1, (now - t0) / 1400); wrap.scrollLeft = from * Math.pow(1 - k, 3); if (k < 1) requestAnimationFrame(pan); })(t0);
-    }
-    if (PARAMS.has('demo')) { if (PARAMS.get('speed') != null) S.speed = Number(PARAMS.get('speed')); openView(PARAMS.get('open')); }
-    else if (!S.log.length) { log('Welcome. You have a quartz claim and $60k. Build the chain from sand to a 72-GPU rack. Every station is a commissioning mission: brief, build it, tune the real thing, certify. Click a station icon to run a manual shift.', 'milestone'); showHelp(); }
+    buildChain(); renderLog(); renderHeader(); renderOperations();
+    if (PARAMS.has('demo')) { openView(PARAMS.get('open')); }
+    else if (!S.log.length) { log('Welcome. You have a quartz claim and $60k. Commission the mine to begin, then follow your shift assignments from sand to a 72-GPU rack.', 'milestone'); showWelcome(); }
     else offlineProgress();
     requestAnimationFrame(frame);
   }
@@ -739,15 +811,28 @@
     if (kind === 'puzzle') { const p = SG.PUZZLES.find(p => p.id === id); if (p) openPuzzle(p); return; }
     if (kind === 'event') { const e = SG.EVENTS.find(e => e.id === id); if (e) { S.events.push({ id: e.id, endsDay: S.day + e.days }); fireEvent(e); } }
   }
+  function showWelcome() {
+    const art = cards.mine.icon.querySelector('figure');
+    const picture = el('div', { class: 'welcome-art', 'aria-hidden': 'true' }); if (art) picture.append(art.cloneNode(true));
+    modal(el('div', { class: 'welcome' }, picture,
+      el('span', { class: 'eyebrow' }, 'YOUR FIRST DAY ON THE FLOOR'), el('h2', null, 'From a rock to a rack.'),
+      el('p', null, 'You have a quartz claim, $60,000, and a factory to build. Start with the mine. Learn the process by putting it to work.'),
+      el('div', { class: 'welcome-steps' }, el('span', null, '01  Assemble the machine'), el('span', null, '02  Tune the real process'), el('span', null, '03  Grow your production line')),
+      el('button', { class: 'btn primary', onclick: () => { closeModal(); unlock(byId.mine); } }, 'Commission your mine →'),
+      el('button', { class: 'btn ghost', onclick: closeModal }, 'Look around first'),
+      el('p', { class: 'small muted' }, 'No prior knowledge needed. The clock pauses while you learn.')
+    ));
+  }
   function showHelp() {
     modal(el('div', null,
       el('div', { class: 'tag' }, 'HOW TO PLAY'), el('h2', null, 'Sand to GPU: Foundry'),
       el('p', null, 'A production-chain game built from the course. One game second is one day. Resources flow left to right along the belt; whatever the furthest station makes is sold, and upstream surplus beyond a 30-day warehouse (sized to what the next station can actually use) sells at market price.'),
       el('ul', null,
         el('li', null, el('b', null, 'Commission each station. '), 'No reading required first: a briefing on the course\'s figures, then you assemble the machine part by part on the course\'s own drawing, then you tune the course\'s real interactives against live targets, then a short certification from the course\'s quizzes.'),
-        el('li', null, el('b', null, 'Click to work. '), 'Click any station illustration to run a manual shift (10% of a day). Contract offers pop up now and then: three days of output within eight, at +30%, with a penalty for a shortfall.'),
+        el('li', null, el('b', null, 'Click to work. '), 'Click any station illustration to run a manual shift (10% of a day). Eight productive shifts charge a Power shift: +35% capacity for 20 game days. Work during a boost cannot recharge it. Claim shift assignments for one-time cash rewards.'),
+        el('li', null, el('b', null, 'Time your boost. '), 'Contracts ask for ten days of current output within eight days, at +30%, with a penalty for a shortfall. Upgrade, use stock, or activate a Power shift; extra capacity still needs inputs.'),
         el('li', null, el('b', null, 'Find the bottleneck. '), 'Cards show the gauge, "starved of X" and "warehouse full". Upgrade levels; every fifth level is an automation tier worth +25%.'),
-        el('li', null, el('b', null, 'Go deep in the fab. '), 'Eight tool bays, each its own mission. Six are required before a wafer moves. Later, migrate the node and watch D0 learning restart.'),
+        el('li', null, el('b', null, 'Go deep in the fab. '), 'Eight tool bays, each its own mission. Missing process bays are outsourced for a fee; the fab idles if that makes production unprofitable. Later, migrate the node and watch D0 learning restart.'),
         el('li', null, el('b', null, 'Multiply. '), 'Every question answered right on the first try adds 0.5% to all revenue forever and pays a grant scaled to your next goal; achievements add more. Your chain keeps running while you are away (up to 60 days).')),
       el('p', { class: 'small muted' }, 'Capex and rates are scaled for play; the numbers in the briefings, widgets, labs and quizzes are the course\'s.'),
       el('button', { class: 'btn primary', onclick: closeModal }, 'To the floor')
