@@ -6,6 +6,8 @@
 
 Built from the [Sand to GPU](https://github.com/DicksonWu654/sand-to-gpu) course. The game reuses the course's own material: its 176 quiz questions, 292 authored figures, 17 apparatus drawings and 46 interactive widgets.
 
+You can also [read the course online](https://sand2gpu.dicksonwu.xyz/); the course and game save progress separately in your browser.
+
 ## How it teaches
 
 You never have to read a chapter first. Every station is a **commissioning mission**:
